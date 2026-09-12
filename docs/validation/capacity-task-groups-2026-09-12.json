@@ -1,0 +1,93 @@
+{
+  "createdAt": "2026-09-12T02:37:03.181Z",
+  "environment": {
+    "platform": "darwin",
+    "arch": "arm64",
+    "cpu": "Apple M3",
+    "logicalCpus": 8,
+    "memoryGiB": 16,
+    "node": "v24.14.1"
+  },
+  "method": "独立服务进程；客户端与服务端在同一台电脑；真实本机 HTTP + SSE；单进程 SQLite；每组 3 项任务，学生按 3 种顺序连续完成；最多 200 个并行 HTTP 请求；无真实模型调用。",
+  "scenarios": [
+    {
+      "participants": 500,
+      "sseConnections": 500,
+      "tasksPerGroup": 3,
+      "groupCompleted": 500,
+      "joinAllMs": 128,
+      "joinP95Ms": 37.2,
+      "publishEventP95Ms": 204.8,
+      "publishedPageReadyP95Ms": 273.5,
+      "submitAllMs": 306,
+      "submitP95Ms": 107.9,
+      "successful": 1500,
+      "failed": 0,
+      "storedAnswers": 1500,
+      "serverRssMiB": 155,
+      "serverPeakRssMiB": 155
+    },
+    {
+      "participants": 1000,
+      "sseConnections": 1000,
+      "tasksPerGroup": 3,
+      "groupCompleted": 1000,
+      "joinAllMs": 166,
+      "joinP95Ms": 19.7,
+      "publishEventP95Ms": 146.6,
+      "publishedPageReadyP95Ms": 286.9,
+      "submitAllMs": 525,
+      "submitP95Ms": 176.4,
+      "successful": 3000,
+      "failed": 0,
+      "storedAnswers": 3000,
+      "serverRssMiB": 239,
+      "serverPeakRssMiB": 239
+    },
+    {
+      "participants": 3000,
+      "sseConnections": 3000,
+      "tasksPerGroup": 3,
+      "groupCompleted": 3000,
+      "joinAllMs": 507,
+      "joinP95Ms": 28.5,
+      "publishEventP95Ms": 88.8,
+      "publishedPageReadyP95Ms": 509,
+      "submitAllMs": 1692,
+      "submitP95Ms": 571.4,
+      "successful": 9000,
+      "failed": 0,
+      "storedAnswers": 9000,
+      "serverRssMiB": 394,
+      "serverPeakRssMiB": 411
+    }
+  ],
+  "soak": {
+    "durationSeconds": 31,
+    "connections": 3000,
+    "heartbeatRequests": 18000,
+    "failed": 0,
+    "rssMiBSamples": [
+      394,
+      382,
+      394,
+      410,
+      411,
+      411
+    ]
+  },
+  "ai": {
+    "kind": "纯模拟服务，每条模拟延迟 120ms，不代表真实模型吞吐",
+    "simultaneousRequests": 100,
+    "globalConcurrency": 4,
+    "maxQueue": 40,
+    "accepted": 44,
+    "rejectedWith429": 56,
+    "completed": 44,
+    "observedUpstreamConcurrency": 4
+  },
+  "server": {
+    "peakRssMiB": 411,
+    "eventLoopP95Ms": 31
+  }
+}

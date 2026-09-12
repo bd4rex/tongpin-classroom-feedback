@@ -1,0 +1,87 @@
+{
+  "createdAt": "2026-09-12T02:07:51.269Z",
+  "environment": {
+    "platform": "darwin",
+    "arch": "arm64",
+    "cpu": "Apple M3",
+    "logicalCpus": 8,
+    "memoryGiB": 16,
+    "node": "v24.14.1"
+  },
+  "method": "独立服务进程；客户端与服务端在同一台电脑；真实本机 HTTP + SSE；单进程 SQLite；最多 200 个并行 HTTP 请求；无真实模型调用。",
+  "scenarios": [
+    {
+      "participants": 500,
+      "sseConnections": 500,
+      "joinAllMs": 115,
+      "joinP95Ms": 35.9,
+      "publishEventP95Ms": 224.9,
+      "publishedPageReadyP95Ms": 272.5,
+      "submitAllMs": 107,
+      "submitP95Ms": 98.9,
+      "successful": 500,
+      "failed": 0,
+      "storedAnswers": 500,
+      "serverRssMiB": 150,
+      "serverPeakRssMiB": 141
+    },
+    {
+      "participants": 1000,
+      "sseConnections": 1000,
+      "joinAllMs": 245,
+      "joinP95Ms": 39.5,
+      "publishEventP95Ms": 42.2,
+      "publishedPageReadyP95Ms": 117.5,
+      "submitAllMs": 180,
+      "submitP95Ms": 166.1,
+      "successful": 1000,
+      "failed": 0,
+      "storedAnswers": 1000,
+      "serverRssMiB": 192,
+      "serverPeakRssMiB": 178
+    },
+    {
+      "participants": 3000,
+      "sseConnections": 3000,
+      "joinAllMs": 585,
+      "joinP95Ms": 30.7,
+      "publishEventP95Ms": 405.2,
+      "publishedPageReadyP95Ms": 650.7,
+      "submitAllMs": 585,
+      "submitP95Ms": 545.6,
+      "successful": 3000,
+      "failed": 0,
+      "storedAnswers": 3000,
+      "serverRssMiB": 336,
+      "serverPeakRssMiB": 335
+    }
+  ],
+  "soak": {
+    "durationSeconds": 32,
+    "connections": 3000,
+    "heartbeatRequests": 18000,
+    "failed": 0,
+    "rssMiBSamples": [
+      342,
+      318,
+      318,
+      294,
+      271,
+      260
+    ]
+  },
+  "ai": {
+    "kind": "纯模拟服务，每条模拟延迟 120ms，不代表真实模型吞吐",
+    "simultaneousRequests": 100,
+    "globalConcurrency": 4,
+    "maxQueue": 40,
+    "accepted": 44,
+    "rejectedWith429": 56,
+    "completed": 44,
+    "observedUpstreamConcurrency": 4
+  },
+  "server": {
+    "peakRssMiB": 342,
+    "eventLoopP95Ms": 25
+  }
+}

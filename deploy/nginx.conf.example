@@ -1,0 +1,15 @@
+# 合并到实际站点配置；TLS 证书及域名由校内环境提供。
+server {
+    listen 80;
+    server_name classroom.example.edu;
+    client_max_body_size 32k;
+    location / {
+        proxy_pass http://127.0.0.1:3210;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header Connection "";
+        proxy_buffering off;
+        proxy_cache off;
+        proxy_read_timeout 90s;
+    }
+}
