@@ -2,7 +2,7 @@
 
 [中文](README.md)
 
-Repository: [bd4rex/tongpin-classroom-feedback](https://github.com/bd4rex/tongpin-classroom-feedback). This is a private repository; cloning requires GitHub access to it.
+Repository: [bd4rex/tongpin-classroom-feedback](https://github.com/bd4rex/tongpin-classroom-feedback). This is a public repository and can be viewed or cloned without signing in to GitHub.
 
 One teacher, one current classroom, and many students joining live. The application supports mathematics, language, science, AI, and other subjects. Audio and video remain in the existing conferencing system.
 

@@ -8,7 +8,7 @@ All times use UTC+08:00.
 
 - Project: Tongpin · General Classroom Feedback MVP, version `0.1.0`.
 - Repository: <https://github.com/bd4rex/tongpin-classroom-feedback>.
-- Branch: `main`; repository visibility: private. The first publication is complete.
+- Branch: `main`; repository visibility: public. The first publication is complete.
 
 ## 2026-09-12 11:05 — Preparation for first publication
 
@@ -24,3 +24,9 @@ All times use UTC+08:00.
 - Initial publication commit: `1f01fd21c44d3afe2071036fa25465d2cbfb181b`, containing 32 files.
 - `git ls-remote origin refs/heads/main` exactly matched local `HEAD`, and the working tree was clean at verification.
 - GitHub repository metadata confirmed private visibility. This log update records the completed creation, push, and verification without changing application code.
+
+## 2026-09-19 00:25 — Repository made public
+
+- Changed `bd4rex/tongpin-classroom-feedback` from private to public at the user's request. GitHub confirmed its visibility as `PUBLIC`.
+- Before the change, remote `main` matched local commit `7cab375dda085def9d41661dc031108ae7f364dc`. Committed files excluded runtime data and actual environment configuration.
+- Updated current visibility in both language versions of the project guide and log. Application code is unchanged.

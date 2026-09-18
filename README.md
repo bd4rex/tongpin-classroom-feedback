@@ -2,7 +2,7 @@
 
 [English](README.en.md)
 
-项目仓库：[bd4rex/tongpin-classroom-feedback](https://github.com/bd4rex/tongpin-classroom-feedback)。仓库为私有，克隆前需要相应的 GitHub 访问权限。
+项目仓库：[bd4rex/tongpin-classroom-feedback](https://github.com/bd4rex/tongpin-classroom-feedback)。仓库已公开，无需登录 GitHub 即可浏览或克隆。
 
 一个老师、一节当前课堂、很多学生现场加入。适用于数学、语文、英语、科学、人工智能等课程。音视频继续使用原有会议系统。
 
