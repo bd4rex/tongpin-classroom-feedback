@@ -55,6 +55,13 @@ All times use UTC+08:00.
 - The student join page hides group and whole-class choices and submits individual participation; the server keeps existing modes for compatibility.
 - All 25 tests, syntax checks, the production build, and `npm audit --omit=dev` passed. Browser screenshots were not regenerated and no school server was deployed in this round.
 
+## 2026-09-19 — PR #2 merged into main
+
+- Feature commit `ef995e500df7747be8f8b35ebfce3944eee432e9` was pushed to `codex/jiangsu-student-entry`, and PR #2 was merged into `main`.
+- GitHub merge commit: `0406b0eede66bc27036d66bf15e286859d947fe7`; remote `main` was verified to contain the Jiangsu city restriction, either/or identity fields, and individual join entry.
+- Pre-merge acceptance: 25 tests, syntax checks, the production build, dependency audit, and secret-pattern scan passed. No school-server deployment or real-model call was made.
+- GitHub PR: [bd4rex/tongpin-classroom-feedback#2](https://github.com/bd4rex/tongpin-classroom-feedback/pull/2).
+
 ## 2026-09-19 — PR #1 merged into main
 
 - Feature commit `8f4844939df09edaf5b2761c6aa05eac2286b616` was pushed to `codex/collection-dashboard`, and PR #1 was merged into `main`.

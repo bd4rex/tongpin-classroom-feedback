@@ -2,7 +2,7 @@
 
 [中文](TEST_REPORT.md)
 
-Latest validation: 2026-09-19, version 0.2.0. Scope: local information collection, session association, teacher/student statistics, projection, and the multiple-entry origin restriction fix. This round further defaults cities to Jiangsu, treats name or nickname as an either/or identity field, and keeps the student entry individual-only. No school production server deployment or real-model calls; this round is pending merge into the public `main` branch.
+Latest validation: 2026-09-19, version 0.2.0. Scope: local information collection, session association, teacher/student statistics, projection, and the multiple-entry origin restriction fix. This round further defaults cities to Jiangsu, treats name or nickname as an either/or identity field, and keeps the student entry individual-only. No school production server deployment or real-model calls; PR #2 has merged this round into the public `main` branch.
 
 ## Functional validation
 

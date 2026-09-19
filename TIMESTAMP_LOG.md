@@ -55,6 +55,13 @@
 - 学生加入页隐藏小组／整班选项，提交固定为个人参与；服务端仍保留既有模式数据兼容。
 - 25 项测试、语法检查、生产构建和 `npm audit --omit=dev` 通过；本轮未重新生成浏览器截图，未部署校内服务器。
 
+## 2026-09-19 — PR #2 合并到 main
+
+- 功能提交 `ef995e500df7747be8f8b35ebfce3944eee432e9` 已推送到 `codex/jiangsu-student-entry`，PR #2 已合并到 `main`。
+- GitHub 合并提交：`0406b0eede66bc27036d66bf15e286859d947fe7`；远端 `main` 已核对包含江苏城市限制、身份二选一和个人加入入口。
+- 合并前验收：25 项测试、语法检查、生产构建、依赖审计和密钥模式扫描均通过。未部署校内服务器，未调用真实模型。
+- GitHub PR：[bd4rex/tongpin-classroom-feedback#2](https://github.com/bd4rex/tongpin-classroom-feedback/pull/2)。
+
 ## 2026-09-19 — PR #1 合并到 main
 
 - 功能提交 `8f4844939df09edaf5b2761c6aa05eac2286b616` 已推送到 `codex/collection-dashboard`，PR #1 已合并到 `main`。
