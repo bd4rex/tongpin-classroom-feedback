@@ -6,9 +6,17 @@ All times use UTC+08:00.
 
 ## Project information
 
-- Project: Tongpin · General Classroom Feedback MVP, local version `0.2.0`.
+- Project: Tongpin · General Classroom Feedback MVP, local version `0.2.1`.
 - Repository: <https://github.com/bd4rex/tongpin-classroom-feedback>.
-- Published branch: `main`; local work: `codex/collection-dashboard`; repository visibility: public. The first publication is complete.
+- Published branch: `main`; this fix branch: `codex/review-fixes-20260919`; repository visibility: public. The first publication is complete.
+
+## 2026-09-19 — 0.2.1 review fixes and release preparation
+
+- Based on `main` at `d3fa12a`, fixes four findings: follow-up refreshes for notifications received during a state request, immediate AI waiting-queue cancellation on pause/end, separation of generated labels from entered nicknames, and consistent city validation when school collection is disabled.
+- Preserves legacy sessions, answers, and original label text. Adds read-only `displayName`; profile and exported nickname fields represent actual student input.
+- Eight new server regressions failed on the original implementation and pass after the fixes. Together with refresh-scheduling regressions, all 36 tests pass, as do the production build and dependency audit. A real browser verifies automatic recovery after a delayed response and correct name restoration in the editor.
+- Updates both language versions of the guide, validation record, and form contract. Tests use isolated data and simulated models. Publication excludes production databases, model configuration, real environment files, dependencies, build outputs, and screenshots.
+- Preparing the authorized GitHub push and PR merge into `main`. No school production deployment or real-model calls were performed.
 
 ## 2026-09-12 11:05 — Preparation for first publication
 

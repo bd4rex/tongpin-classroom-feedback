@@ -13,7 +13,8 @@ let app,
   modelCalls,
   activeModels,
   peakModels,
-  modelBehavior;
+  modelBehavior,
+  modelGate;
 const pause = (ms) => new Promise((r) => setTimeout(r, ms));
 const request = (method, url, body, cookie = teacherCookie) =>
   app.inject({
@@ -105,6 +106,7 @@ beforeEach(async () => {
   activeModels = 0;
   peakModels = 0;
   modelBehavior = "success";
+  modelGate = null;
   app = await buildApp({
     dataDir: dir,
     serveStatic: false,
@@ -112,6 +114,7 @@ beforeEach(async () => {
       activeModels++;
       peakModels = Math.max(peakModels, activeModels);
       modelCalls.push({ url, body: JSON.parse(options.body) });
+      if (modelGate) await modelGate;
       await pause(50);
       activeModels--;
       if (modelBehavior === "error") throw new Error("upstream unavailable");
@@ -203,9 +206,7 @@ test("只允许一节当前课堂，结束后可复用活动而不带入回答",
   );
   assert.equal(defaultOptions.collection.cities.length, 13);
   assert.deepEqual(
-    defaultOptions.collection.fields
-      .filter((f) => f.required)
-      .map((f) => f.id),
+    defaultOptions.collection.fields.filter((f) => f.required).map((f) => f.id),
     ["city", "school", "className", "nickname"],
   );
   assert.equal(
@@ -1138,11 +1139,10 @@ test("教师勾选采集项、城市学校联动、必填校验及未启用字�
   );
   assert.equal(
     (
-      await request(
-        "PUT",
-        `/api/teacher/classrooms/${r.id}/collection`,
-        { ...config, schools: [{ city: "北京市", school: "不应保存" }] },
-      )
+      await request("PUT", `/api/teacher/classrooms/${r.id}/collection`, {
+        ...config,
+        schools: [{ city: "北京市", school: "不应保存" }],
+      })
     ).statusCode,
     400,
   );
@@ -1202,7 +1202,8 @@ test("教师勾选采集项、城市学校联动、必填校验及未启用字�
   assert.equal(s.state.participant.city, "南京市");
   assert.equal(s.state.participant.name, "测试张三");
   assert.equal(s.state.participant.studentNo, "0007");
-  assert.match(s.state.participant.nickname, /^同学 /);
+  assert.equal(s.state.participant.nickname, "");
+  assert.equal(s.state.participant.displayName, "测试张三");
   assert.equal(s.state.participant.phone, undefined);
   const p = app.store.get(
     "SELECT * FROM participants WHERE classroom_id=?",
@@ -1555,4 +1556,364 @@ test("词云按每份回答计数、排除词生效、采样和长度有界", as
   assert.ok(bounded.terms.length <= 50);
   assert.equal(bounded.sampled, true);
   assert.ok(bounded.sampleSize < 300);
+});
+
+for (const operation of [
+  "group-pause",
+  "activity-pause",
+  "group-close",
+  "classroom-end",
+]) {
+  test(`AI ${operation} 立即取消对应排队请求，恢复后不重新派发`, async () => {
+    let release;
+    modelGate = new Promise((resolve) => {
+      release = resolve;
+    });
+    try {
+      value(
+        await request("PUT", "/api/teacher/model", {
+          baseUrl: "https://model.invalid/v1",
+          model: "test-model",
+          apiKey: "",
+          enabled: true,
+          concurrency: 1,
+          maxQueue: 3,
+          maxTokens: 200,
+        }),
+      );
+      const r = await room("");
+      const a = await activity(r.id, {
+        type: "ai",
+        title: "先开放的探究",
+        prompt: "解释概念",
+        aiLimit: 3,
+      });
+      await control(a.id);
+      const b = await activity(r.id, {
+        type: "ai",
+        title: "另一组探究",
+        prompt: "解释概念",
+        aiLimit: 3,
+      });
+      await control(b.id);
+      const people = await Promise.all(
+        Array.from({ length: 3 }, () => student(r.code)),
+      );
+      const jobs = [];
+      for (let i = 0; i < people.length; i++) {
+        jobs.push(
+          value(
+            await request(
+              "POST",
+              `/api/student/activities/${i < 2 ? a.id : b.id}/ai`,
+              { question: `问题 ${i}`, requestId: `held-${i}` },
+              people[i].cookie,
+            ),
+          ),
+        );
+      }
+      assert.equal(modelCalls.length, 1);
+      if (operation === "classroom-end")
+        value(await request("POST", `/api/teacher/classrooms/${r.id}/end`, {}));
+      else if (operation === "activity-pause") await control(a.id, "pause");
+      else
+        value(
+          await request("POST", `/api/teacher/groups/${a.group_id}/control`, {
+            action: operation === "group-close" ? "close" : "pause",
+          }),
+        );
+
+      const status = (id) =>
+        app.store.get("SELECT status FROM ai_jobs WHERE id=?", id).status;
+      assert.equal(status(jobs[0].id), "running");
+      assert.equal(status(jobs[1].id), "cancelled");
+      assert.equal(
+        status(jobs[2].id),
+        operation === "classroom-end" ? "cancelled" : "queued",
+      );
+      if (operation.endsWith("pause")) {
+        await control(a.id, "publish");
+        const retry = value(
+          await request(
+            "POST",
+            `/api/student/activities/${a.id}/ai`,
+            { question: "问题 1", requestId: "held-1" },
+            people[1].cookie,
+          ),
+        );
+        assert.equal(retry.status, "cancelled");
+        assert.equal(modelCalls.length, 1);
+        // The cancelled job must no longer block this participant's next task.
+        value(
+          await request(
+            "POST",
+            `/api/student/activities/${b.id}/ai`,
+            { question: "新任务的问题", requestId: "after-pause" },
+            people[1].cookie,
+          ),
+        );
+      }
+      release();
+      await idle();
+      assert.equal(status(jobs[1].id), "cancelled");
+      assert.equal(
+        modelCalls.length,
+        operation === "classroom-end" ? 1 : operation.endsWith("pause") ? 3 : 2,
+      );
+      assert.ok(
+        !modelCalls.some(
+          (call) => call.body.messages.at(-1).content === "问题 1",
+        ),
+      );
+      assert.equal(peakModels, 1);
+    } finally {
+      release();
+      await idle();
+    }
+  });
+}
+
+test("自动参与编号不满足后来开启的昵称必填，补填后沿用原会话", async () => {
+  const r = await room("");
+  await configureCollection(r.id, [], []);
+  const s = await student(r.code);
+  assert.equal(s.state.participant.nickname, "");
+  assert.match(s.state.participant.displayName, /^同学 /);
+  const a = await activity(r.id, { type: "text", title: "补填后的反馈" });
+  await control(a.id);
+  await configureCollection(r.id, ["nickname"], ["nickname"]);
+  assert.deepEqual(
+    value(await request("GET", "/api/student/state", undefined, s.cookie))
+      .missingProfile,
+    ["昵称"],
+  );
+  assert.equal(
+    (
+      await request(
+        "POST",
+        `/api/student/activities/${a.id}/answer`,
+        { text: "尚未补填" },
+        s.cookie,
+      )
+    ).statusCode,
+    409,
+  );
+  await configureCollection(r.id, ["name", "nickname"], ["nickname"]);
+  assert.deepEqual(
+    value(await request("GET", "/api/student/state", undefined, s.cookie))
+      .missingProfile,
+    ["姓名或昵称"],
+  );
+  const saved = value(
+    await request(
+      "PUT",
+      "/api/student/profile",
+      { nickname: "补填同学" },
+      s.cookie,
+    ),
+  );
+  assert.equal(saved.participant.displayName, "补填同学");
+  assert.deepEqual(saved.missingProfile, []);
+  value(
+    await request(
+      "POST",
+      `/api/student/activities/${a.id}/answer`,
+      { text: "补填完成" },
+      s.cookie,
+    ),
+  );
+  assert.equal(app.store.roomSummary(r).total, 1);
+});
+
+test("姓名和昵称切换不会回填自动编号，明细与导出只记录实际填写值", async () => {
+  const r = await room("");
+  await configureCollection(r.id, ["name", "nickname"], ["nickname"]);
+  const s = await student(r.code, { name: "测试陈明", nickname: "" });
+  assert.equal(s.state.participant.name, "测试陈明");
+  assert.equal(s.state.participant.nickname, "");
+  assert.equal(s.state.participant.displayName, "测试陈明");
+  let state = value(
+    await request(
+      "PUT",
+      "/api/student/profile",
+      { name: "", nickname: "课堂昵称" },
+      s.cookie,
+    ),
+  );
+  assert.equal(state.participant.name, "");
+  assert.equal(state.participant.displayName, "课堂昵称");
+  state = value(
+    await request(
+      "PUT",
+      "/api/student/profile",
+      { name: "测试陈明", nickname: "" },
+      s.cookie,
+    ),
+  );
+  assert.equal(state.participant.nickname, "");
+  assert.equal(state.participant.displayName, "测试陈明");
+  const rows = value(
+    await request("GET", `/api/teacher/classrooms/${r.id}/participants`),
+  ).rows;
+  assert.equal(rows[0].nickname, "");
+  assert.equal(rows[0].displayName, "测试陈明");
+  const exported = value(
+    await request("GET", `/api/teacher/classrooms/${r.id}/export?format=json`),
+  );
+  assert.equal(exported.participants[0].nickname, "");
+  assert.equal(exported.participants[0].displayName, "测试陈明");
+});
+
+test("旧版自动昵称兼容迁移保留记录，真实昵称及迁移后显式填写的编号不被误判", async () => {
+  const r = await room("");
+  await configureCollection(r.id, [], []);
+  const anonymous = await student(r.code);
+  const original = app.store.get(
+    "SELECT * FROM participants WHERE classroom_id=?",
+    r.id,
+  );
+  await configureCollection(r.id, ["nickname"], ["nickname"]);
+  const named = await student(r.code, { nickname: "实际填写的昵称" });
+  const namedId = app.store.get(
+    "SELECT id FROM participants WHERE nickname=?",
+    "实际填写的昵称",
+  ).id;
+  const explicitLabel =
+    namedId.slice(0, 4).toUpperCase() === "ABCD" ? "同学 DCBA" : "同学 ABCD";
+  value(
+    await request(
+      "PUT",
+      "/api/student/profile",
+      { nickname: explicitLabel },
+      named.cookie,
+    ),
+  );
+  // Simulate the previous release's schema, preserving the same session tokens.
+  await app.close();
+  const db = new DatabaseSync(join(dir, "classroom.sqlite"));
+  if (
+    db
+      .prepare("PRAGMA table_info(participants)")
+      .all()
+      .some((c) => c.name === "nickname_generated")
+  )
+    db.exec("ALTER TABLE participants DROP COLUMN nickname_generated");
+  db.close();
+  app = await buildApp({ dataDir: dir, serveStatic: false });
+  let state = value(
+    await request("GET", "/api/student/state", undefined, anonymous.cookie),
+  );
+  assert.equal(state.participant.nickname, "");
+  assert.deepEqual(state.missingProfile, ["昵称"]);
+  assert.equal(
+    value(await request("GET", "/api/student/state", undefined, named.cookie))
+      .participant.nickname,
+    explicitLabel,
+  );
+  assert.equal(app.store.roomSummary(r).total, 2);
+  // A student can explicitly choose a value identical to their display number.
+  value(
+    await request(
+      "PUT",
+      "/api/student/profile",
+      { nickname: `同学 ${namedId.slice(0, 4).toUpperCase()}` },
+      named.cookie,
+    ),
+  );
+  value(
+    await request(
+      "PUT",
+      "/api/student/profile",
+      { nickname: original.nickname },
+      anonymous.cookie,
+    ),
+  );
+  await app.close();
+  app = await buildApp({ dataDir: dir, serveStatic: false });
+  state = value(
+    await request("GET", "/api/student/state", undefined, anonymous.cookie),
+  );
+  assert.equal(state.participant.nickname, original.nickname);
+  assert.deepEqual(state.missingProfile, []);
+  assert.deepEqual(
+    value(await request("GET", "/api/student/state", undefined, named.cookie))
+      .missingProfile,
+    [],
+  );
+});
+
+test("关闭学校采集后名单不再限制城市，重新开启后恢复联动校验", async () => {
+  const r = await room("");
+  const config = await configureCollection(
+    r.id,
+    ["city", "school"],
+    ["city", "school"],
+  );
+  config.schools = [{ city: "南京市", school: "名单学校" }];
+  value(
+    await request("PUT", `/api/teacher/classrooms/${r.id}/collection`, config),
+  );
+  await configureCollection(r.id, ["city"], ["city"]);
+  const options = value(
+    await request("GET", `/api/join/options?code=${r.code}`, undefined, ""),
+  );
+  assert.equal(options.collection.cities.length, 13);
+  for (const city of options.collection.cities) {
+    const joined = value(
+      await request(
+        "POST",
+        "/api/join",
+        { code: r.code, profile: { city, school: "隐藏字段" } },
+        "",
+      ),
+    );
+    assert.equal(joined.participant.city, city);
+    assert.equal(joined.participant.school, "未填写学校");
+  }
+  await configureCollection(r.id, ["city", "school"], ["city", "school"]);
+  assert.deepEqual(
+    value(
+      await request("GET", `/api/join/options?code=${r.code}`, undefined, ""),
+    ).collection.cities,
+    ["南京市"],
+  );
+  assert.equal(
+    (
+      await request(
+        "POST",
+        "/api/join",
+        { code: r.code, profile: { city: "苏州市", school: "名单学校" } },
+        "",
+      )
+    ).statusCode,
+    400,
+  );
+  value(
+    await request(
+      "POST",
+      "/api/join",
+      { code: r.code, profile: { city: "南京市", school: "名单学校" } },
+      "",
+    ),
+  );
+  await configureCollection(r.id, ["school"], ["school"]);
+  value(
+    await request(
+      "POST",
+      "/api/join",
+      { code: r.code, profile: { school: "名单学校" } },
+      "",
+    ),
+  );
+  assert.equal(
+    (
+      await request(
+        "POST",
+        "/api/join",
+        { code: r.code, profile: { school: "名单外学校" } },
+        "",
+      )
+    ).statusCode,
+    400,
+  );
 });

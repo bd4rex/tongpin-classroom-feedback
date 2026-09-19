@@ -27,6 +27,8 @@ import {
   publicCollection,
   normalizeProfile,
   profileOf,
+  anonymousName,
+  participantName,
   missingProfile,
 } from "./collection.js";
 import { createDashboard } from "./dashboard.js";
@@ -194,7 +196,7 @@ export async function buildApp({
   app.get("/api/health", async () => ({
     ok: true,
     app: "同频课堂反馈",
-    version: "0.2.0",
+    version: "0.2.1",
   }));
   app.get("/api/auth/status", async (request) => {
     let authenticated = false;
@@ -316,12 +318,13 @@ export async function buildApp({
       teacher(request);
       const room = store.classroom(request.params.id);
       const raw = store.all(
-        "SELECT id,nickname,city,school,class_name,student_no,name,mode,size,joined_at,last_seen FROM participants WHERE classroom_id=? ORDER BY joined_at,id",
+        "SELECT id,nickname,nickname_generated,city,school,class_name,student_no,name,mode,size,joined_at,last_seen FROM participants WHERE classroom_id=? ORDER BY joined_at,id",
         room.id,
       );
       const rows = raw.map((p) => ({
         id: p.id,
         ...profileOf(p),
+        displayName: participantName(p),
         mode: p.mode,
         size: p.size,
         joinedAt: p.joined_at,
@@ -434,6 +437,7 @@ export async function buildApp({
         id,
       );
     });
+    ai.cancelQueued({ classroomId: id });
     broadcast(id);
     return { ok: true };
   });
@@ -524,6 +528,8 @@ export async function buildApp({
   app.post("/api/teacher/groups/:id/control", async (request) => {
     teacher(request);
     const g = store.controlGroup(request.params.id, request.body?.action);
+    if (["pause", "close"].includes(request.body?.action))
+      ai.cancelQueued({ groupId: g.id });
     broadcast(g.classroom_id);
     return { ok: true };
   });
@@ -538,7 +544,11 @@ export async function buildApp({
         a.revealed ? 0 : 1,
         a.id,
       );
-    } else store.controlGroup(a.group_id, action);
+    } else {
+      store.controlGroup(a.group_id, action);
+      if (["pause", "close"].includes(action))
+        ai.cancelQueued({ groupId: a.group_id });
+    }
     broadcast(a.classroom_id);
     return { ok: true };
   });
@@ -600,12 +610,13 @@ export async function buildApp({
           exportedAt: new Date().toISOString(),
           participants: store
             .all(
-              "SELECT id,nickname,city,school,class_name,student_no,name,mode,size,joined_at FROM participants WHERE classroom_id=?",
+              "SELECT id,nickname,nickname_generated,city,school,class_name,student_no,name,mode,size,joined_at FROM participants WHERE classroom_id=?",
               state.room.id,
             )
             .map((p) => ({
               id: p.id,
               ...profileOf(p),
+              displayName: participantName(p),
               mode: p.mode,
               size: p.size,
               joinedAt: p.joined_at,
@@ -701,8 +712,9 @@ export async function buildApp({
       profileOf(p),
     );
     store.run(
-      "UPDATE participants SET nickname=?,city=?,school=?,class_name=?,student_no=?,name=?,last_seen=? WHERE id=?",
-      profile.nickname || p.nickname,
+      "UPDATE participants SET nickname=?,nickname_generated=?,city=?,school=?,class_name=?,student_no=?,name=?,last_seen=? WHERE id=?",
+      profile.nickname || anonymousName(p.id),
+      profile.nickname ? 0 : 1,
       profile.city,
       profile.school || "未填写学校",
       profile.className || "未填写班级",
@@ -760,13 +772,14 @@ export async function buildApp({
       body.profile ?? body,
       collectionConfig(room),
     );
-    const nickname = profile.nickname || `同学 ${id.slice(0, 4).toUpperCase()}`;
+    const nickname = profile.nickname || anonymousName(id);
     store.run(
-      "INSERT INTO participants (id,classroom_id,token,nickname,school,class_name,mode,size,joined_at,last_seen,city,student_no,name) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
+      "INSERT INTO participants (id,classroom_id,token,nickname,nickname_generated,school,class_name,mode,size,joined_at,last_seen,city,student_no,name) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
       id,
       room.id,
       hash(value),
       nickname,
+      profile.nickname ? 0 : 1,
       profile.school || "未填写学校",
       profile.className || "未填写班级",
       mode,

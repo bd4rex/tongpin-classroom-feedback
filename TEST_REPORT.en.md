@@ -2,11 +2,36 @@
 
 [中文](TEST_REPORT.md)
 
-Latest validation: 2026-09-19, version 0.2.0. Scope: local information collection, session association, teacher/student statistics, projection, and the multiple-entry origin restriction fix. This round further defaults cities to Jiangsu, treats name or nickname as an either/or identity field, and keeps the student entry individual-only. No school production server deployment or real-model calls; PR #2 has merged this round into the public `main` branch.
+Latest validation: 2026-09-19, version 0.2.1. This round fixes four review findings: missed notifications, AI queue cancellation, generated labels being treated as nicknames, and city validation when school collection is hidden. Tests use isolated temporary data and simulated models. No school production deployment or real-model calls were performed. The 0.2.0 functional, browser, and short capacity records are retained below.
+
+## 0.2.1 review-fix regressions
+
+- Eight new server regressions failed before the fixes and passed afterward. Three frontend refresh-scheduling tests were also added. `npm run check` passes all 36 tests, syntax checks, and the production build; `npm audit --omit=dev` reports zero known vulnerabilities.
+- Notification coalescing: 100 notifications arriving during one request produce one follow-up read, with a maximum of one concurrent request. Leaving the classroom cancels pending refreshes; later notifications still work after a failed request.
+- Real Chromium page: delay the state response requested when SSE becomes ready, publish the second group, then release the old response. A follow-up refresh displays the second group automatically. Observed: three state requests, one ready event, one update event, and zero manual reloads.
+- AI queue: covers group pause, the compatible activity-pause route, group end, and classroom end. Undispatched requests are cancelled immediately and do not revive on resume. Other groups remain queued, dispatched requests finish, and peak simulated model concurrency stays at one.
+- Identity collection: generated labels do not satisfy newly required nickname or name/nickname fields. Completing the profile retains the session. Switching between name and nickname does not restore a generated label; teacher records and exports retain actual input. After supplying only a name, the browser editor selects Name and restores that value.
+- Legacy data: restart from a simulated 0.2.0 participant schema identifies generated labels while preserving sessions and records. Real nicknames and matching labels explicitly entered after migration remain valid across another restart.
+- City choices: all 13 cities can join when school collection is disabled. Re-enabling school collection narrows the options and restores catalog validation. School-only collection still validates the school catalog.
+
+Browser regression: `test/browser/realtime-regression.js`. Start the QA server with a fresh data directory, then run the script through Playwright CLI:
+
+```bash
+QA_DATA_DIR="$(mktemp -d)" node scripts/qa-server.js
+```
+
+In another terminal:
+
+```bash
+npx --yes --package @playwright/cli playwright-cli --session regression open about:blank --headed
+npx --yes --package @playwright/cli playwright-cli --session regression run-code --filename test/browser/realtime-regression.js
+```
+
+Screenshots for this round remain in ignored local paths `output/playwright/realtime-fixed.png` and `output/playwright/identity-fixed.png`. The 3,000-endpoint capacity run and full-class-duration tests were not repeated; the historical load results below are not production acceptance for this release.
 
 ## Functional validation
 
-`npm run check` passed: 24 integration tests, JavaScript syntax checks, and the production frontend build. `npm audit --omit=dev` reported zero known vulnerabilities.
+For 0.2.0, `npm run check` passed the final 25 integration tests, JavaScript syntax checks, and the production frontend build. `npm audit --omit=dev` reported zero known vulnerabilities.
 
 Origin compatibility regression: a JSON mutation with a different `Origin` no longer returns 403 and proceeds to normal teacher authentication (401 when unauthenticated); a non-JSON mutation still returns 415. The main service health endpoint at `http://127.0.0.1:3210/api/health` reports version `0.2.0`.
 

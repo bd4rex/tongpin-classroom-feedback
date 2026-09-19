@@ -127,9 +127,12 @@ export function profileOf(p) {
     className: p.class_name === "未填写班级" ? "" : p.class_name,
     studentNo: p.student_no || "",
     name: p.name || "",
-    nickname: p.nickname || "",
+    nickname: p.nickname_generated ? "" : p.nickname || "",
   };
 }
+export const anonymousName = (id) => `同学 ${id.slice(0, 4).toUpperCase()}`;
+export const participantName = (p) =>
+  p.name || p.nickname || anonymousName(p.id);
 export function normalizeProfile(body, config, existing = {}) {
   const profile = {};
   const identity = config.fields.filter(
@@ -157,7 +160,7 @@ export function normalizeProfile(body, config, existing = {}) {
   const enabled = (id) => config.fields.some((f) => f.id === id && f.enabled);
   if (enabled("city") && profile.city && !JIANGSU_CITIES.includes(profile.city))
     fail("请选择江苏省内的城市");
-  if (config.schools.length) {
+  if (enabled("school") && config.schools.length) {
     if (
       enabled("city") &&
       profile.city &&

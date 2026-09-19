@@ -33,7 +33,7 @@ export function ProfileFields({ collection, value, onChange }) {
       ];
   const identityKey = identityFields.map((f) => f.id).join("|");
   const [identityChoice, setIdentityChoice] = useState(() => {
-    if (value.name && !value.nickname && identityFields.some((f) => f.id === "name"))
+    if (value.name && identityFields.some((f) => f.id === "name"))
       return "name";
     if (
       value.nickname &&
@@ -48,7 +48,7 @@ export function ProfileFields({ collection, value, onChange }) {
   useEffect(() => {
     if (!identityFields.some((f) => f.id === identityChoice))
       setIdentityChoice(identityFields.find((f) => f.required)?.id ?? identityFields[0]?.id ?? "nickname");
-    else if (value.name && !value.nickname && identityFields.some((f) => f.id === "name"))
+    else if (value.name && identityFields.some((f) => f.id === "name"))
       setIdentityChoice("name");
     else if (
       value.nickname &&
@@ -465,7 +465,7 @@ export function ParticipantRecords({ roomId }) {
                 {data?.rows.map((p) => (
                   <tr key={p.id}>
                     <td>
-                      {p.name || p.nickname}
+                      {p.displayName}
                       <small>{p.name ? p.nickname : ""}</small>
                     </td>
                     <td>{p.studentNo || "—"}</td>

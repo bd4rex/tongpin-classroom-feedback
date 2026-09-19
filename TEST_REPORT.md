@@ -2,11 +2,36 @@
 
 [English](TEST_REPORT.en.md)
 
-最新验证：2026-09-19，版本 0.2.0。范围是本机信息采集、会话关联、教师／学生统计与大屏，以及多入口来源限制修复。本轮进一步将默认城市限制为江苏省内、身份改为姓名或昵称二选一，学生入口固定为个人参与。未部署校内正式服务器，未调用真实模型；本轮已通过 PR #2 合并到公开仓库 `main`。
+最新验证：2026-09-19，版本 0.2.1。本轮修复实时通知、AI 暂停队列、自动编号与昵称混用、隐藏学校后的城市校验四项审查问题。使用独立临时数据和模拟模型，未部署校内正式服务器，未调用真实模型。下方同时保留 0.2.0 的功能、浏览器和短时容量记录。
+
+## 0.2.1 审查修复回归
+
+- 新增 8 项服务端回归在修复前全部失败，修复后通过；另新增 3 项前端刷新调度测试。`npm run check` 共 36 项测试、语法检查及生产构建通过；`npm audit --omit=dev` 为 0 项已知漏洞。
+- 通知合并：一个请求未完成时集中收到 100 次通知，只补发一次状态读取，最大同时请求数为 1；离开课堂取消待补刷，失败后仍可处理后续通知。
+- 真实 Chromium 页面：延迟 SSE 就绪时的状态响应，期间发布第二组任务，放行旧响应后自动补刷并出现第二组。观测 3 次状态请求、1 次 ready 和 1 次 update，手动刷新次数为 0。
+- AI 队列：覆盖任务组暂停、兼容活动暂停、任务组结束和课堂结束；尚未派发的请求立即取消，恢复不复活，其他组正常排队；已派发请求完成，模拟模型最大并发始终为 1。
+- 身份采集：匿名编号不满足后来开启的昵称或姓名／昵称必填；补填沿用原会话；姓名与昵称互相切换不回填自动编号，教师明细与导出保留实际填写值。浏览器只填姓名后再次编辑，默认选中“姓名”并显示原值。
+- 旧数据：模拟 0.2.0 表结构后重启，自动编号被识别，原会话与参与记录保留；真实昵称和迁移后显式填写的同形编号经再次重启仍有效。
+- 城市选项：关闭学校后遍历全部 13 个城市，均可成功加入；重开学校后只提供名单城市并恢复校验；只开启学校时仍校验学校名单。
+
+浏览器复现脚本：`test/browser/realtime-regression.js`。启动一个使用全新数据目录的 QA 服务，再通过 Playwright CLI 执行脚本：
+
+```bash
+QA_DATA_DIR="$(mktemp -d)" node scripts/qa-server.js
+```
+
+另一个终端：
+
+```bash
+npx --yes --package @playwright/cli playwright-cli --session regression open about:blank --headed
+npx --yes --package @playwright/cli playwright-cli --session regression run-code --filename test/browser/realtime-regression.js
+```
+
+本轮截图：本机忽略目录 `output/playwright/realtime-fixed.png`、`output/playwright/identity-fixed.png`。未重跑 3000 端容量或完整课时测试，未把下方历史负载结果当成本轮正式容量验收。
 
 ## 功能验证
 
-`npm run check` 通过：24 项集成测试、JavaScript 语法检查及前端生产构建通过。`npm audit --omit=dev` 报告 0 项已知漏洞。
+0.2.0 的 `npm run check` 通过：最终 25 项集成测试、JavaScript 语法检查及前端生产构建通过。`npm audit --omit=dev` 报告 0 项已知漏洞。
 
 来源兼容性回归：带不一致 `Origin` 的 JSON 写请求不再返回 403，而是进入正常的教师鉴权流程（未登录时返回 401）；非 JSON 写请求仍返回 415。主服务 `http://127.0.0.1:3210/api/health` 返回版本 `0.2.0`。
 
