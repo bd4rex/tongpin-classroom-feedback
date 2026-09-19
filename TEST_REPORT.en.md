@@ -13,6 +13,7 @@ Latest validation: 2026-09-19, version 0.2.1. This round fixes four review findi
 - Identity collection: generated labels do not satisfy newly required nickname or name/nickname fields. Completing the profile retains the session. Switching between name and nickname does not restore a generated label; teacher records and exports retain actual input. After supplying only a name, the browser editor selects Name and restores that value.
 - Legacy data: restart from a simulated 0.2.0 participant schema identifies generated labels while preserving sessions and records. Real nicknames and matching labels explicitly entered after migration remain valid across another restart.
 - City choices: all 13 cities can join when school collection is disabled. Re-enabling school collection narrows the options and restores catalog validation. School-only collection still validates the school catalog.
+- After PR #3 merged, backed up the existing local database through the SQLite Backup API and started 0.2.1. Integrity, foreign keys, and comparison of existing records passed; the management password is unchanged. Port 3210 health reports 0.2.1, with no test data added to existing classrooms.
 
 Browser regression: `test/browser/realtime-regression.js`. Start the QA server with a fresh data directory, then run the script through Playwright CLI:
 

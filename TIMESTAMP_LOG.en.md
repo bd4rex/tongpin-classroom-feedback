@@ -10,6 +10,14 @@ All times use UTC+08:00.
 - Repository: <https://github.com/bd4rex/tongpin-classroom-feedback>.
 - Published branch: `main`; this fix branch: `codex/review-fixes-20260919`; repository visibility: public. The first publication is complete.
 
+## 2026-09-19 20:33 — PR #3 merged and local verification
+
+- Fix commit `298079efc87a95d6e61bb89c8e7c458cb90010b3` merged into `main` through [PR #3](https://github.com/bd4rex/tongpin-classroom-feedback/pull/3). The GitHub merge commit is `8502e571aebf3c0459fd8fdb9e6c4d9842caa789`.
+- Verified the base branch, fix commit, and mergeability before merging. This repository has no GitHub automated checks configured; release validation used the passing local 36 tests, build, browser regressions, and dependency audit. Merged source matches the validated commit.
+- The local port-3210 service was not running. Backed up the existing database through the SQLite Backup API into ignored `output/backups/`, checked integrity and foreign keys, then started `0.2.1`.
+- Local health reports `0.2.1`. The new column migrated successfully; comparison with the backup confirms preservation of classrooms, tasks, participants, answers, and questions, with the management password unchanged. No test records were inserted into existing classrooms.
+- No school production deployment or real-model calls were performed. Runtime data, backups, and model configuration remain local.
+
 ## 2026-09-19 — 0.2.1 review fixes and release preparation
 
 - Based on `main` at `d3fa12a`, fixes four findings: follow-up refreshes for notifications received during a state request, immediate AI waiting-queue cancellation on pause/end, separation of generated labels from entered nicknames, and consistent city validation when school collection is disabled.
