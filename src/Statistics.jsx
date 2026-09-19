@@ -317,7 +317,7 @@ export function StatisticsPanel({ roomId, audience = "teacher" }) {
       </div>
       {audience === "teacher" && <ParticipantRecords roomId={roomId} />}
       <p className="statistics-footer">
-        每个参与端计一份反馈，小组／整班参与不折算为个人成绩。统计不依赖 AI。
+        每个参与端计一份反馈，不折算为个人成绩。统计不依赖 AI。
       </p>
     </div>
   );

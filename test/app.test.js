@@ -39,7 +39,29 @@ async function room(templateId = "math") {
   );
 }
 async function student(code, extra = {}) {
-  const r = await request("POST", "/api/join", { code, ...extra }, "");
+  const profileKeys = [
+    "city",
+    "school",
+    "className",
+    "studentNo",
+    "name",
+    "nickname",
+  ];
+  const profile = {
+    city: "南京市",
+    school: "测试学校",
+    className: "五年级1班",
+    nickname: "测试同学",
+    ...Object.fromEntries(
+      profileKeys
+        .filter((key) => Object.hasOwn(extra, key))
+        .map((key) => [key, extra[key]]),
+    ),
+    ...(extra.profile || {}),
+  };
+  const body = { code, ...extra, profile };
+  for (const key of profileKeys) delete body[key];
+  const r = await request("POST", "/api/join", body, "");
   return { state: value(r), cookie: r.headers["set-cookie"].split(";")[0] };
 }
 async function activity(roomId, body) {
@@ -176,14 +198,24 @@ test("教师权限、初始化锁定、请求格式与密钥隔离", async () =>
 });
 test("只允许一节当前课堂，结束后可复用活动而不带入回答", async () => {
   const r = await room();
+  const defaultOptions = value(
+    await request("GET", `/api/join/options?code=${r.code}`, undefined, ""),
+  );
+  assert.equal(defaultOptions.collection.cities.length, 13);
+  assert.deepEqual(
+    defaultOptions.collection.fields
+      .filter((f) => f.required)
+      .map((f) => f.id),
+    ["city", "school", "className", "nickname"],
+  );
   assert.equal(
     (await request("POST", "/api/teacher/classrooms", { title: "第二节课" }))
       .statusCode,
     409,
   );
   const s = await student(r.code);
-  assert.match(s.state.participant.nickname, /^同学 /);
-  assert.equal(s.state.participant.school, "未填写学校");
+  assert.equal(s.state.participant.nickname, "测试同学");
+  assert.equal(s.state.participant.school, "测试学校");
   await request("POST", `/api/teacher/classrooms/${r.id}/end`, {});
   assert.equal(
     (await request("POST", "/api/join", { code: r.code }, "")).statusCode,
@@ -300,7 +332,7 @@ test("个人、小组和整班各计一个参与端，正确率以实际提交�
   const a = app.store.teacherState(r.id).activities[0];
   await control(a.id);
   const students = await Promise.all([
-    student(r.code, { mode: "individual" }),
+    student(r.code, { mode: "individual", school: "甲校" }),
     student(r.code, {
       mode: "group",
       size: 5,
@@ -1084,7 +1116,36 @@ test("教师勾选采集项、城市学校联动、必填校验及未启用字�
     options.collection.fields.map((f) => f.id),
     ["city", "school", "className", "studentNo", "name"],
   );
+  assert.deepEqual(options.collection.cities, ["南京市", "苏州市"]);
   assert.equal(options.collection.display, undefined);
+  const invalidIdentity = {
+    ...config,
+    fields: config.fields.map((f) =>
+      ["name", "nickname"].includes(f.id)
+        ? { ...f, enabled: true, required: true }
+        : f,
+    ),
+  };
+  assert.equal(
+    (
+      await request(
+        "PUT",
+        `/api/teacher/classrooms/${r.id}/collection`,
+        invalidIdentity,
+      )
+    ).statusCode,
+    400,
+  );
+  assert.equal(
+    (
+      await request(
+        "PUT",
+        `/api/teacher/classrooms/${r.id}/collection`,
+        { ...config, schools: [{ city: "北京市", school: "不应保存" }] },
+      )
+    ).statusCode,
+    400,
+  );
   assert.equal(
     (await request("POST", "/api/join", { code: r.code }, "")).statusCode,
     400,
@@ -1099,6 +1160,25 @@ test("教师勾选采集项、城市学校联动、必填校验及未启用字�
           profile: {
             city: "南京市",
             school: "乙小学",
+            studentNo: "0007",
+            name: "测试张三",
+          },
+        },
+        "",
+      )
+    ).statusCode,
+    400,
+  );
+  assert.equal(
+    (
+      await request(
+        "POST",
+        "/api/join",
+        {
+          code: r.code,
+          profile: {
+            city: "北京市",
+            school: "甲小学",
             studentNo: "0007",
             name: "测试张三",
           },
@@ -1141,6 +1221,23 @@ test("教师勾选采集项、城市学校联动、必填校验及未启用字�
       )
     ).statusCode,
     401,
+  );
+});
+
+test("姓名或昵称在前后端按二选一处理，并可被后台改为固定项", async () => {
+  const r = await room("");
+  await configureCollection(r.id, ["name", "nickname"], ["nickname"]);
+  assert.equal(
+    (await request("POST", "/api/join", { code: r.code }, "")).statusCode,
+    400,
+  );
+  const s = await student(r.code, { profile: { nickname: "课堂小明" } });
+  assert.equal(s.state.participant.nickname, "课堂小明");
+  await configureCollection(r.id, ["name", "nickname"], ["name"]);
+  assert.deepEqual(
+    value(await request("GET", "/api/student/state", undefined, s.cookie))
+      .missingProfile,
+    [],
   );
 });
 
@@ -1202,7 +1299,7 @@ test("新增必填项要求当前会话补填，不新增参与端，关闭字�
   const state = value(
     await request("GET", "/api/student/state", undefined, s.cookie),
   );
-  assert.deepEqual(state.missingProfile, ["城市", "姓名"]);
+  assert.deepEqual(state.missingProfile, ["姓名"]);
   assert.equal(
     (
       await request(

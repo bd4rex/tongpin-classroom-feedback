@@ -6,7 +6,7 @@ Repository: [bd4rex/tongpin-classroom-feedback](https://github.com/bd4rex/tongpi
 
 One teacher, one current classroom, and many students joining live. The application supports mathematics, language, science, AI, and other subjects. Audio and video remain in the existing conferencing system.
 
-Students do not need accounts or an imported roster. They enter a classroom code and complete only the fields enabled by the teacher. Nickname, school, and class are optional by default; all can be disabled, or city, name, and student number can be enabled. Participation can represent an individual, a group, or an entire class.
+Students do not need accounts or an imported roster. They enter a classroom code and, by default, provide a name or nickname, a Jiangsu city, a school, and a grade/class. Teachers can change which fields are shown and required. The current student entry is designed for individual participation; group and whole-class modes are not shown there yet.
 
 ## Documentation
 
