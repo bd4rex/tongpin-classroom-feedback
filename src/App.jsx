@@ -709,7 +709,7 @@ function Teacher({ notify, logout, onAuthExpired }) {
               <QrCode size={21} />
               <span>现场加入</span>
               <span className="muted">
-                不建学生账号 · 不导入名单 · 支持个人、小组和整班参与
+                不建学生账号 · 不导入名单 · 学生个人加入即可
               </span>
             </div>
           </section>
@@ -1069,8 +1069,7 @@ function Teacher({ notify, logout, onAuthExpired }) {
               </div>
             )}
             <p className="measurement-note">
-              每个参与端计一份反馈。小组和整班的回答不折算为个人成绩；在线状态按最近
-              75 秒的心跳计算。
+              每个参与端计一份反馈，不折算为个人成绩；在线状态按最近 75 秒的心跳计算。
             </p>
           </section>
         )}
@@ -2520,8 +2519,6 @@ function JoinForm({ initialCode, onJoined, notify }) {
     [options, setOptions] = useState(null),
     [optionsError, setOptionsError] = useState(""),
     [configTick, setConfigTick] = useState(0),
-    [mode, setMode] = useState("individual"),
-    [size, setSize] = useState(4),
     [busy, setBusy] = useState(false);
   useEffect(() => {
     setOptions(null);
@@ -2547,8 +2544,10 @@ function JoinForm({ initialCode, onJoined, notify }) {
         await post("/api/join", {
           code,
           profile,
-          mode,
-          size,
+          // The student entry currently exposes individual participation only.
+          // Keep the server's group/class modes available for existing records
+          // and future teacher-side workflows without presenting them here.
+          mode: "individual",
         }),
       );
     } catch (e) {
@@ -2586,44 +2585,6 @@ function JoinForm({ initialCode, onJoined, notify }) {
             required
           />
         </label>
-        <fieldset className="mode-field">
-          <legend>参与方式</legend>
-          <div className="mode-choices">
-            {Object.entries(MODES).map(([key, label]) => (
-              <button
-                key={key}
-                type="button"
-                className={mode === key ? "selected" : ""}
-                onClick={() => {
-                  setMode(key);
-                  setSize(key === "class" ? 30 : 4);
-                }}
-              >
-                {key === "individual" ? (
-                  <GraduationCap size={18} />
-                ) : key === "group" ? (
-                  <Users size={18} />
-                ) : (
-                  <BookOpen size={18} />
-                )}
-                <span>{label}</span>
-              </button>
-            ))}
-          </div>
-        </fieldset>
-        {mode !== "individual" && (
-          <label>
-            代表人数
-            <input
-              type="number"
-              required
-              min={1}
-              max={100}
-              value={size}
-              onChange={(e) => setSize(Number(e.target.value))}
-            />
-          </label>
-        )}
         {options && (
           <section className="join-collection">
             <h2>{options.title}</h2>

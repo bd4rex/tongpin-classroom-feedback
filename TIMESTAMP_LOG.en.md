@@ -48,6 +48,13 @@ All times use UTC+08:00.
 - Kept JSON request validation, teacher/student session authentication, cookie attributes, request rates, body limits, classroom state rules, and AI queue limits.
 - All 24 tests, the production build, and the dependency audit passed; the main service restarted at `127.0.0.1:3210`.
 
+## 2026-09-19 — Student entry and default collection rules (pending publication)
+
+- Default classroom collection now limits cities to the 13 prefecture-level cities in Jiangsu; school lists reject cities outside Jiangsu.
+- When name and nickname are both shown, students choose one. The teacher UI prevents both from being required; a fixed identity can still use only one enabled field.
+- The student join page hides group and whole-class choices and submits individual participation; the server keeps existing modes for compatibility.
+- All 25 tests, syntax checks, the production build, and `npm audit --omit=dev` passed. Browser screenshots were not regenerated and no school server was deployed in this round.
+
 ## 2026-09-19 — PR #1 merged into main
 
 - Feature commit `8f4844939df09edaf5b2761c6aa05eac2286b616` was pushed to `codex/collection-dashboard`, and PR #1 was merged into `main`.

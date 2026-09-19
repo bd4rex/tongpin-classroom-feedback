@@ -10,8 +10,53 @@ import { api } from "./api.js";
 
 export function ProfileFields({ collection, value, onChange }) {
   const fields = collection?.fields.filter((f) => f.enabled !== false) || [];
+  const identityFields = fields.filter((f) => ["name", "nickname"].includes(f.id));
+  const otherFields = fields.filter((f) => !["name", "nickname"].includes(f.id));
   const cityEnabled = fields.some((f) => f.id === "city");
   const catalog = collection?.schools || [];
+  const cities = collection?.cities?.length
+    ? collection.cities
+    : [
+        "南京市",
+        "无锡市",
+        "徐州市",
+        "常州市",
+        "苏州市",
+        "南通市",
+        "连云港市",
+        "淮安市",
+        "盐城市",
+        "扬州市",
+        "镇江市",
+        "泰州市",
+        "宿迁市",
+      ];
+  const identityKey = identityFields.map((f) => f.id).join("|");
+  const [identityChoice, setIdentityChoice] = useState(() => {
+    if (value.name && !value.nickname && identityFields.some((f) => f.id === "name"))
+      return "name";
+    if (
+      value.nickname &&
+      !value.name &&
+      identityFields.some((f) => f.id === "nickname")
+    )
+      return "nickname";
+    return (
+      identityFields.find((f) => f.required)?.id ?? identityFields[0]?.id ?? "nickname"
+    );
+  });
+  useEffect(() => {
+    if (!identityFields.some((f) => f.id === identityChoice))
+      setIdentityChoice(identityFields.find((f) => f.required)?.id ?? identityFields[0]?.id ?? "nickname");
+    else if (value.name && !value.nickname && identityFields.some((f) => f.id === "name"))
+      setIdentityChoice("name");
+    else if (
+      value.nickname &&
+      !value.name &&
+      identityFields.some((f) => f.id === "nickname")
+    )
+      setIdentityChoice("nickname");
+  }, [identityKey, identityChoice, value.name, value.nickname]);
   const set = (id, text) => {
     const next = { ...value, [id]: text };
     if (
@@ -28,10 +73,60 @@ export function ProfileFields({ collection, value, onChange }) {
     );
   return (
     <div className="profile-fields">
-      {fields.map((f) => {
+      {identityFields.length > 0 && (
+        <div className="identity-field">
+          <div className="identity-field-heading">
+            <span>
+              {identityFields.length > 1 ? "姓名或昵称" : identityFields[0].label}
+            </span>
+            <span className="optional">
+              {identityFields.some((f) => f.required) ? "必填其一" : "选填"}
+            </span>
+          </div>
+          {identityFields.length > 1 && (
+            <div className="identity-choice" role="group" aria-label="选择填写姓名或昵称">
+              {identityFields.map((f) => (
+                <button
+                  type="button"
+                  key={f.id}
+                  className={identityChoice === f.id ? "selected" : ""}
+                  onClick={() => {
+                    setIdentityChoice(f.id);
+                    onChange({
+                      ...value,
+                      [f.id]: value[f.id] || "",
+                      [f.id === "name" ? "nickname" : "name"]: "",
+                    });
+                  }}
+                >
+                  {f.label}
+                </button>
+              ))}
+            </div>
+          )}
+          <input
+            aria-label={identityFields.length > 1 ? "姓名或昵称" : identityFields[0].label}
+            required={identityFields.some((f) => f.required)}
+            maxLength={identityFields.find((f) => f.id === identityChoice)?.maxLength ?? 40}
+            value={value[identityChoice] || ""}
+            onChange={(e) => {
+              const other = identityChoice === "name" ? "nickname" : "name";
+              onChange({ ...value, [identityChoice]: e.target.value, [other]: "" });
+            }}
+            autoComplete="off"
+            placeholder={
+              identityChoice === "name" ? "填写真实姓名" : "填写课堂昵称"
+            }
+          />
+          {identityFields.length > 1 && (
+            <p className="form-help">姓名和昵称选择填写其中一项即可。</p>
+          )}
+        </div>
+      )}
+      {otherFields.map((f) => {
         const options =
           f.id === "city"
-            ? [...new Set(catalog.map((s) => s.city))]
+            ? cities
             : f.id === "school"
               ? [
                   ...new Set(
@@ -71,9 +166,7 @@ export function ProfileFields({ collection, value, onChange }) {
                 onChange={(e) => set(f.id, e.target.value)}
                 autoComplete="off"
                 placeholder={
-                  f.id === "nickname"
-                    ? "留空自动生成参与编号"
-                    : `填写${f.label}`
+                  f.id === "className" ? "如：五年级1班" : `填写${f.label}`
                 }
               />
             )}
@@ -93,15 +186,23 @@ export function CollectionSettings({ initial, onSave, onClose, notify }) {
   const toggle = (id, key, v) =>
     setConfig((c) => ({
       ...c,
-      fields: c.fields.map((f) =>
-        f.id === id
-          ? {
-              ...f,
-              [key]: v,
-              ...(key === "enabled" && !v ? { required: false } : {}),
-            }
-          : f,
-      ),
+      fields: c.fields.map((f) => {
+        if (f.id === id)
+          return {
+            ...f,
+            [key]: v,
+            ...(key === "enabled" && !v ? { required: false } : {}),
+          };
+        if (
+          key === "required" &&
+          v &&
+          ["name", "nickname"].includes(id) &&
+          ["name", "nickname"].includes(f.id) &&
+          f.id !== id
+        )
+          return { ...f, required: false };
+        return f;
+      }),
     }));
   async function save(e) {
     e.preventDefault();
@@ -143,6 +244,9 @@ export function CollectionSettings({ initial, onSave, onClose, notify }) {
         <span>显示</span>
         <span>必填</span>
       </div>
+      <p className="form-help identity-setting-note">
+        姓名和昵称同时显示时，学生只需选择填写其中一项；如需固定填写某一种称呼，只开启对应项目并设为必填。
+      </p>
       {config.fields.map((f) => (
         <div className="field-config-row" key={f.id}>
           <strong>{f.label}</strong>
@@ -179,7 +283,7 @@ export function CollectionSettings({ initial, onSave, onClose, notify }) {
       </label>
       <p className="form-help">
         最多 200
-        行。填写名单后，学生从选项中选择，学校随城市筛选；留空时由学生填写。
+        行。城市请使用江苏省内城市；填写名单后，学生从选项中选择，学校随城市筛选；留空时由学生填写。
       </p>
       <div className="collection-display-options">
         <label className="check-label">
@@ -354,7 +458,7 @@ export function ParticipantRecords({ roomId }) {
                   <th>学号</th>
                   <th>城市</th>
                   <th>学校</th>
-                  <th>班级</th>
+                  <th>年级／班级</th>
                 </tr>
               </thead>
               <tbody>

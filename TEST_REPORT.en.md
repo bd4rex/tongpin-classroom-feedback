@@ -2,7 +2,7 @@
 
 [中文](TEST_REPORT.md)
 
-Latest validation: 2026-09-19, version 0.2.0. Scope: local information collection, session association, teacher/student statistics, projection, and the multiple-entry origin restriction fix. No school production server deployment or real-model calls. Local acceptance is complete, and PR #1 has merged this update into the public `main` branch.
+Latest validation: 2026-09-19, version 0.2.0. Scope: local information collection, session association, teacher/student statistics, projection, and the multiple-entry origin restriction fix. This round further defaults cities to Jiangsu, treats name or nickname as an either/or identity field, and keeps the student entry individual-only. No school production server deployment or real-model calls; this round is pending merge into the public `main` branch.
 
 ## Functional validation
 
@@ -10,7 +10,7 @@ Latest validation: 2026-09-19, version 0.2.0. Scope: local information collectio
 
 Origin compatibility regression: a JSON mutation with a different `Origin` no longer returns 403 and proceeds to normal teacher authentication (401 when unauthenticated); a non-JSON mutation still returns 415. The main service health endpoint at `http://127.0.0.1:3210/api/health` reports version `0.2.0`.
 
-Existing classroom, task-group, independent-progress, idempotency, participation-mode, permission, persistence, CSV, and AI-queue tests remain. Six new tests cover:
+Existing classroom, task-group, independent-progress, idempotency, participation-mode, permission, persistence, CSV, and AI-queue tests remain. This round adds the name-or-nickname regression, for 25 tests total:
 
 - Visible/required collection fields, valid city/school combinations, and rejection of new values for disabled fields.
 - Session reuse without duplicate participants, leading-zero student numbers, response relationships, cookie renewal, and recovery after restart.
@@ -18,6 +18,7 @@ Existing classroom, task-group, independent-progress, idempotency, participation
 - Teacher preview versus per-task result publication for students/projection; no draft or raw identity disclosure; display revocation applies immediately at the API; same-named schools in different cities remain distinct.
 - Teacher record pagination, CSV protection, JSON relationships, and copying configuration without identity records when reusing classrooms.
 - Once-per-response word counts, excluded terms and collected identifier filtering, and bounded sample/character budgets.
+- The default 13 Jiangsu cities, rejection of non-Jiangsu school-list cities, mutual exclusion of required name and nickname, and individual-only student entry.
 
 ## Browser validation
 
@@ -32,7 +33,7 @@ An isolated `output/collection-browser-data` directory and clearly named synthet
 - Projection opened in a new tab. This classroom fit in one 1920×1080 view, and entering/exiting fullscreen worked.
 - Teacher pages at 1440px and teacher/student pages at 390px had no page-level horizontal overflow. Wide tables scroll within their cards. Screenshots were visually checked.
 
-Screenshots are local at `output/playwright/collection-*.png`. Independent group pacing and the simulated AI browser flow were validated on 2026-09-12; related server regressions passed again. Simulated output is not evidence of real-model quality.
+Screenshots are local at `output/playwright/collection-*.png`. Independent group pacing and the simulated AI browser flow were validated on 2026-09-12. The new rules received server and production-build regression checks in this round; browser screenshots were not regenerated. Simulated output is not evidence of real-model quality.
 
 ## Collection, submission, and dashboard load
 
