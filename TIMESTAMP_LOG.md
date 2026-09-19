@@ -47,3 +47,10 @@
 - 删除服务端对 `Origin` 与 `Host` 的严格比较，解决 `localhost`、`127.0.0.1`、局域网 IP 和反向代理入口不一致时设置密码提示“请求来源不一致”的问题。
 - 保留 JSON 请求格式、教师／学生会话鉴权、Cookie 属性、请求频率、请求体大小、课堂状态和 AI 队列限制。
 - 24 项测试、生产构建、依赖审计通过；主服务已重启在 `127.0.0.1:3210` 运行。
+
+## 2026-09-19 — PR #1 合并到 main
+
+- 功能提交 `8f4844939df09edaf5b2761c6aa05eac2286b616` 已推送到 `codex/collection-dashboard`，PR #1 已合并到 `main`。
+- GitHub 合并提交：`432939ef395ebdb6b619c75975a51e4fbcd89270`；远端 `main` 已核对包含采集与统计功能。
+- 合并前验收：24 项测试、JavaScript 语法检查、生产构建及 `npm audit --omit=dev` 均通过；提交内容密钥模式扫描通过。
+- GitHub PR：[bd4rex/tongpin-classroom-feedback#1](https://github.com/bd4rex/tongpin-classroom-feedback/pull/1)。未部署校内服务器，未调用真实模型。

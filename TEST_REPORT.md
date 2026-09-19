@@ -2,7 +2,7 @@
 
 [English](TEST_REPORT.en.md)
 
-最新验证：2026-09-19，版本 0.2.0。范围是本机信息采集、会话关联、教师／学生统计与大屏，以及多入口来源限制修复。未部署校内正式服务器，未调用真实模型。本次更新已通过本地验收，准备合并到公开仓库 `main`。
+最新验证：2026-09-19，版本 0.2.0。范围是本机信息采集、会话关联、教师／学生统计与大屏，以及多入口来源限制修复。未部署校内正式服务器，未调用真实模型。本次更新已通过本地验收，并已通过 PR #1 合并到公开仓库 `main`。
 
 ## 功能验证
 
@@ -64,7 +64,7 @@
 
 现有 `data/classroom.sqlite` 升级前通过 SQLite Backup API 备份至忽略目录 `output/backups/`，完整性检查通过。新字段为兼容性添加，旧课堂沿用默认选填设置；本地 3210 端口启动 0.2.0。运行数据、模型配置、构建产物与截图不进入 Git。
 
-2026-09-12 的 18 项测试及任务组容量基线保留于 [capacity-task-groups-2026-09-12.json](docs/validation/capacity-task-groups-2026-09-12.json)。仓库公开及既有 GitHub 发布记录见 [TIMESTAMP_LOG.md](TIMESTAMP_LOG.md)，此次功能更新将随本次发布进入 `main`。
+2026-09-12 的 18 项测试及任务组容量基线保留于 [capacity-task-groups-2026-09-12.json](docs/validation/capacity-task-groups-2026-09-12.json)。仓库公开及 GitHub 发布记录见 [TIMESTAMP_LOG.md](TIMESTAMP_LOG.md)，此次功能更新已随 PR #1 进入 `main`。
 
 ## 正式试课仍需验证
 

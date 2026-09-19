@@ -2,7 +2,7 @@
 
 [中文](TEST_REPORT.md)
 
-Latest validation: 2026-09-19, version 0.2.0. Scope: local information collection, session association, teacher/student statistics, projection, and the multiple-entry origin restriction fix. No school production server deployment or real-model calls. Local acceptance is complete; this update is prepared for merging into the public `main` branch.
+Latest validation: 2026-09-19, version 0.2.0. Scope: local information collection, session association, teacher/student statistics, projection, and the multiple-entry origin restriction fix. No school production server deployment or real-model calls. Local acceptance is complete, and PR #1 has merged this update into the public `main` branch.
 
 ## Functional validation
 
@@ -64,7 +64,7 @@ Existing tests continue to cover one outstanding request per endpoint, idempoten
 
 Before migration, `data/classroom.sqlite` was copied with the SQLite Backup API to ignored `output/backups/`, and its integrity check passed. New columns are additive; existing classrooms use the default optional fields. Version 0.2.0 starts locally on port 3210. Runtime data, model configuration, build artifacts, and screenshots remain outside Git.
 
-The 18-test baseline and group-load results from 2026-09-12 remain in [capacity-task-groups-2026-09-12.json](docs/validation/capacity-task-groups-2026-09-12.json). Repository publication history is in [TIMESTAMP_LOG.en.md](TIMESTAMP_LOG.en.md); this feature update will enter `main` with this publication.
+The 18-test baseline and group-load results from 2026-09-12 remain in [capacity-task-groups-2026-09-12.json](docs/validation/capacity-task-groups-2026-09-12.json). Repository publication history is in [TIMESTAMP_LOG.en.md](TIMESTAMP_LOG.en.md); this feature update entered `main` through PR #1.
 
 ## Before a real lesson
 

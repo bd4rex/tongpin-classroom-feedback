@@ -40,10 +40,17 @@ All times use UTC+08:00.
 - All 24 tests, syntax checks, production build, and dependency audit passed. Desktop/mobile views, fullscreen, and identity-record isolation were checked in real browsers.
 - A local 3,000-endpoint run completed 9,000 submissions; 18,000 later heartbeats and 18,000 dashboard reads had no failures. Short-run server RSS peaked at approximately 448 MiB. These mock local measurements are not a target-server capacity promise.
 - Backed up the primary SQLite database with the Backup API and verified integrity; the updated app runs locally on port 3210. Test data remains in `output/`; no real model was configured or called.
-- Local acceptance is complete. The update is ready to be committed and merged into the public `main` branch; no school-server deployment was made.
+- Local acceptance is complete. The update was committed and merged into the public `main` branch; no school-server deployment was made.
 
 ## 2026-09-19 — Removed entry-origin restriction
 
 - Removed the strict server comparison between `Origin` and `Host`, fixing the “request source mismatch” shown during password setup when `localhost`, `127.0.0.1`, a LAN IP, or a reverse-proxy entry point differs.
 - Kept JSON request validation, teacher/student session authentication, cookie attributes, request rates, body limits, classroom state rules, and AI queue limits.
 - All 24 tests, the production build, and the dependency audit passed; the main service restarted at `127.0.0.1:3210`.
+
+## 2026-09-19 — PR #1 merged into main
+
+- Feature commit `8f4844939df09edaf5b2761c6aa05eac2286b616` was pushed to `codex/collection-dashboard`, and PR #1 was merged into `main`.
+- GitHub merge commit: `432939ef395ebdb6b619c75975a51e4fbcd89270`; remote `main` was verified to contain the collection and statistics feature.
+- Pre-merge acceptance: 24 tests, JavaScript syntax checks, the production build, and `npm audit --omit=dev` passed; the staged-content secret-pattern scan passed.
+- GitHub PR: [bd4rex/tongpin-classroom-feedback#1](https://github.com/bd4rex/tongpin-classroom-feedback/pull/1). No school-server deployment or real-model call was made.
