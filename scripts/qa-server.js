@@ -20,7 +20,7 @@ const mock = http.createServer(async (req, res) => {
 });
 await new Promise((resolve) => mock.listen(3212, "127.0.0.1", resolve));
 const app = await buildApp({
-  dataDir: "./output/browser-data",
+  dataDir: process.env.QA_DATA_DIR || "./output/browser-data",
   publicUrl: "http://127.0.0.1:3211",
 });
 await app.listen({ port: 3211, host: "127.0.0.1" });

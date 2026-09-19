@@ -1,3 +1,10 @@
+import { api, post } from "./api.js";
+import {
+  CollectionSettings,
+  ProfileFields,
+  ProfileEditor,
+} from "./Collection.jsx";
+import { StatisticsPanel, Projection } from "./Statistics.jsx";
 import {
   TeacherGroups,
   GroupProgress,
@@ -61,27 +68,6 @@ const STATUS = {
   closed: "已结束",
 };
 const MODES = { individual: "个人参与", group: "小组参与", class: "整班参与" };
-const api = async (path, options = {}) => {
-  const response = await fetch(path, {
-    credentials: "same-origin",
-    ...options,
-    headers: {
-      ...(options.body ? { "Content-Type": "application/json" } : {}),
-      ...options.headers,
-    },
-  });
-  const data = await response
-    .json()
-    .catch(() => ({ error: "服务返回异常，请稍后重试" }));
-  if (!response.ok) {
-    const error = new Error(data.error || "操作失败");
-    error.status = response.status;
-    throw error;
-  }
-  return data;
-};
-const post = (path, body = {}) =>
-  api(path, { method: "POST", body: JSON.stringify(body) });
 const fmtTime = (time) =>
   new Date(time).toLocaleString("zh-CN", {
     month: "2-digit",
@@ -221,9 +207,16 @@ export default function App() {
   }, []);
   useEffect(() => () => clearTimeout(timer.current), []);
   const student = location.pathname.startsWith("/join");
+  const screenId = location.pathname.startsWith("/screen/")
+    ? location.pathname.split("/")[2]
+    : null;
   return (
     <>
-      {student ? <Student notify={notify} /> : <TeacherGate notify={notify} />}
+      {student ? (
+        <Student notify={notify} />
+      ) : (
+        <TeacherGate notify={notify} screenId={screenId} />
+      )}
       <div className="toast-zone" aria-live="polite">
         {toast && (
           <div className={`toast ${toast.error ? "error" : ""}`}>
@@ -239,7 +232,7 @@ export default function App() {
     </>
   );
 }
-function TeacherGate({ notify }) {
+function TeacherGate({ notify, screenId }) {
   const [auth, setAuth] = useState(null),
     [error, setError] = useState("");
   const refresh = () =>
@@ -270,6 +263,8 @@ function TeacherGate({ notify }) {
         <Loader2 className="spin" /> 正在连接工作台
       </div>
     );
+  if (auth.authenticated && screenId)
+    return <Projection roomId={screenId} notify={notify} />;
   if (auth.authenticated)
     return (
       <Teacher
@@ -385,6 +380,7 @@ function Teacher({ notify, logout, onAuthExpired }) {
     [id, setId] = useState(null),
     [state, setState] = useState(null),
     [view, setView] = useState("class"),
+    [teacherMode, setTeacherMode] = useState("prepare"),
     [selected, setSelected] = useState(null),
     [selectedGroup, setSelectedGroup] = useState(null),
     [pane, setPane] = useState("results"),
@@ -433,6 +429,7 @@ function Teacher({ notify, logout, onAuthExpired }) {
   }, []);
   useEffect(() => {
     setState(null);
+    setTeacherMode("prepare");
     setSelected(null);
     setSelectedGroup(null);
     if (id) refresh();
@@ -446,6 +443,61 @@ function Teacher({ notify, logout, onAuthExpired }) {
     state?.activities.find(
       (a) => a.id === selected && a.group_id === activeGroup?.id,
     ) ?? state?.activities.find((a) => a.group_id === activeGroup?.id);
+  const liveGroup =
+    state?.groups.find((g) => g.id === state.room.current_group_id) ??
+    activeGroup;
+  const liveActivity =
+    state?.activities.find((a) => a.id === state.room.current_activity_id) ??
+    state?.activities.find((a) => a.group_id === liveGroup?.id) ??
+    active;
+  const liveActivities = state?.activities.filter(
+    (a) => a.group_id === liveGroup?.id && a.status !== "draft",
+  ) ?? [];
+  function selectLiveActivity(offset) {
+    if (!liveActivities.length) return;
+    const currentIndex = Math.max(
+      0,
+      liveActivities.findIndex((a) => a.id === (liveActivity?.id ?? "")),
+    );
+    const next =
+      liveActivities[
+        Math.min(
+          liveActivities.length - 1,
+          Math.max(0, currentIndex + offset),
+        )
+      ];
+    setSelectedGroup(liveGroup?.id ?? null);
+    setSelected(next?.id ?? null);
+    setPane("results");
+  }
+  function enterLiveMode() {
+    setSelectedGroup(liveGroup?.id ?? activeGroup?.id ?? null);
+    setSelected(liveActivity?.id ?? active?.id ?? null);
+    setPane("results");
+    setTeacherMode("live");
+  }
+  const groupList = state ? (
+    <TeacherGroups
+      groups={state.groups}
+      activities={state.activities}
+      selectedGroup={activeGroup?.id}
+      selectedTask={active?.id}
+      readonly={state.room.status === "ended"}
+      onGroup={(g) => {
+        setSelectedGroup(g.id);
+        setSelected(g.taskIds[0] ?? null);
+        setPane("results");
+      }}
+      onTask={(g, a) => {
+        setSelectedGroup(g.id);
+        setSelected(a.id);
+        setPane("results");
+      }}
+      onAddGroup={() => setModal({ type: "group" })}
+      onEditGroup={(g) => setModal({ type: "group", group: g })}
+      onAddTask={(g) => setModal({ type: "activity", groupId: g.id })}
+    />
+  ) : null;
   const openCurrent = () => {
     const currentRoom = rooms.find((r) => r.status !== "ended");
     setId(currentRoom?.id ?? null);
@@ -688,6 +740,21 @@ function Teacher({ notify, logout, onAuthExpired }) {
                 </p>
               </div>
               <div className="heading-actions">
+                {state.room.status !== "ended" && (
+                  <Button onClick={() => setModal({ type: "collection" })}>
+                    <Settings2 size={16} />
+                    采集与展示
+                  </Button>
+                )}
+                <a
+                  className="btn secondary"
+                  href={`/screen/${id}`}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  <BarChart3 size={16} />
+                  第二屏监看
+                </a>
                 <Button onClick={() => exported("csv")}>
                   <Download size={16} />
                   导出回答
@@ -715,6 +782,49 @@ function Teacher({ notify, logout, onAuthExpired }) {
                   )
                 )}
               </div>
+            </div>
+            <div className="workspace-modebar" role="tablist" aria-label="教师工作模式">
+              <div className="workspace-mode-tabs">
+                <button
+                  role="tab"
+                  aria-selected={teacherMode === "prepare"}
+                  className={teacherMode === "prepare" ? "selected" : ""}
+                  onClick={() => setTeacherMode("prepare")}
+                >
+                  <Settings2 size={17} />
+                  <span>
+                    <strong>课前配置</strong>
+                    <small>组织资源与任务</small>
+                  </span>
+                </button>
+                <button
+                  role="tab"
+                  aria-selected={teacherMode === "live"}
+                  className={teacherMode === "live" ? "selected" : ""}
+                  onClick={enterLiveMode}
+                >
+                  <Radio size={17} />
+                  <span>
+                    <strong>课堂控制</strong>
+                    <small>控制节奏与反馈</small>
+                  </span>
+                </button>
+              </div>
+              <div className="workspace-modebar-note">
+                {teacherMode === "prepare"
+                  ? "学生端预览不会直接发布，确认后再开放任务组。"
+                  : "教师控制当前课堂，实时数据可交给第二块屏幕监看。"}
+              </div>
+              <a
+                className="monitor-link"
+                href={`/screen/${id}`}
+                target="_blank"
+                rel="noreferrer"
+              >
+                <Eye size={16} />
+                打开第二屏
+                <ArrowUpRight size={14} />
+              </a>
             </div>
             <div className="class-overview">
               <button
@@ -772,47 +882,63 @@ function Teacher({ notify, logout, onAuthExpired }) {
                 </span>
               </div>
             </div>
-            <div className="class-workspace">
-              <TeacherGroups
-                groups={state.groups}
-                activities={state.activities}
-                selectedGroup={activeGroup?.id}
-                selectedTask={active?.id}
-                readonly={state.room.status === "ended"}
-                onGroup={(g) => {
-                  setSelectedGroup(g.id);
-                  setSelected(g.taskIds[0] ?? null);
-                  setPane("results");
-                }}
-                onTask={(g, a) => {
-                  setSelectedGroup(g.id);
-                  setSelected(a.id);
-                  setPane("results");
-                }}
-                onAddGroup={() => setModal({ type: "group" })}
-                onEditGroup={(g) => setModal({ type: "group", group: g })}
-                onAddTask={(g) => setModal({ type: "activity", groupId: g.id })}
-              />
-              <div className="feedback-column">
-                <GroupProgress
-                  group={activeGroup}
-                  readonly={state.room.status === "ended"}
-                  busy={busy}
-                  Countdown={Countdown}
-                  refresh={refresh}
-                  onEdit={() => setModal({ type: "group", group: activeGroup })}
-                  onControl={(action) =>
-                    perform(
-                      () =>
-                        post(`/api/teacher/groups/${activeGroup.id}/control`, {
-                          action,
-                        }),
-                      action === "publish"
-                        ? "整组任务已开放，学生可以自主完成"
-                        : "任务组状态已更新",
-                    )
-                  }
-                />
+            {teacherMode === "prepare" ? (
+              <div className="class-workspace teacher-prep-workspace">
+                {groupList}
+                <div className="feedback-column">
+                  <PreparationPanel
+                    activity={active}
+                    group={activeGroup}
+                    room={state.room}
+                    readonly={state.room.status === "ended"}
+                    onEdit={() =>
+                      active &&
+                      setModal({ type: "activity", activity: active })
+                    }
+                    onAdd={() => setModal({ type: "activity" })}
+                    onEnterLive={enterLiveMode}
+                  />
+                </div>
+              </div>
+            ) : (
+              <div className="class-workspace teacher-live-workspace">
+                {groupList}
+                <div className="feedback-column">
+                  <LiveControlStrip
+                    activity={liveActivity}
+                    group={liveGroup}
+                    activities={liveActivities}
+                    busy={busy}
+                    onPrevious={() => selectLiveActivity(-1)}
+                    onNext={() => selectLiveActivity(1)}
+                    onOpenMonitor={() => window.open(`/screen/${id}`, "_blank", "noopener")}
+                  />
+                  {pane !== "stats" && (
+                  <GroupProgress
+                    group={activeGroup}
+                    readonly={state.room.status === "ended"}
+                    busy={busy}
+                    Countdown={Countdown}
+                    refresh={refresh}
+                    onEdit={() =>
+                      setModal({ type: "group", group: activeGroup })
+                    }
+                    onControl={(action) =>
+                      perform(
+                        () =>
+                          post(
+                            `/api/teacher/groups/${activeGroup.id}/control`,
+                            {
+                              action,
+                            },
+                          ),
+                        action === "publish"
+                          ? "整组任务已开放，学生可以自主完成"
+                          : "任务组状态已更新",
+                      )
+                    }
+                  />
+                )}
 
                 <div className="feedback-tabs" role="tablist">
                   <button
@@ -836,8 +962,19 @@ function Teacher({ notify, logout, onAuthExpired }) {
                       {state.questions.filter((q) => !q.answered).length}
                     </span>
                   </button>
+                  <button
+                    role="tab"
+                    aria-selected={pane === "stats"}
+                    className={pane === "stats" ? "selected" : ""}
+                    onClick={() => setPane("stats")}
+                  >
+                    <BarChart3 size={17} />
+                    数据统计
+                  </button>
                 </div>
-                {pane === "questions" ? (
+                {pane === "stats" ? (
+                  <StatisticsPanel roomId={id} />
+                ) : pane === "questions" ? (
                   <section className="surface question-panel">
                     <div className="section-header">
                       <h2>来自学生的疑问</h2>
@@ -929,7 +1066,8 @@ function Teacher({ notify, logout, onAuthExpired }) {
                   </section>
                 )}
               </div>
-            </div>
+              </div>
+            )}
             <p className="measurement-note">
               每个参与端计一份反馈。小组和整班的回答不折算为个人成绩；在线状态按最近
               75 秒的心跳计算。
@@ -952,6 +1090,24 @@ function Teacher({ notify, logout, onAuthExpired }) {
           }}
           notify={notify}
         />
+      )}
+      {modal?.type === "collection" && (
+        <Modal title="采集与展示设置" onClose={() => setModal(null)} wide>
+          <CollectionSettings
+            initial={state.collection}
+            notify={notify}
+            onClose={() => setModal(null)}
+            onSave={async (config) => {
+              await api(`/api/teacher/classrooms/${id}/collection`, {
+                method: "PUT",
+                body: JSON.stringify(config),
+              });
+              await refresh();
+              setModal(null);
+              notify("采集与展示设置已更新");
+            }}
+          />
+        </Modal>
       )}
       {modal?.type === "group" && (
         <Modal
@@ -1096,6 +1252,183 @@ function Teacher({ notify, logout, onAuthExpired }) {
     </div>
   );
 }
+function PreparationPanel({
+  activity,
+  group,
+  room,
+  readonly,
+  onEdit,
+  onAdd,
+  onEnterLive,
+}) {
+  const hasActivity = Boolean(activity);
+  const hasGroupActivity = Boolean(group?.progress?.taskCount);
+  const isPublished = group && group.status !== "draft";
+  return (
+    <div className="preparation-column">
+      <section className="surface prep-intro">
+        <div>
+          <span className="eyebrow">课前配置</span>
+          <h2>把本节课的资源和项目排好</h2>
+          <p>
+            先组织任务组，再预览学生页面。保存后的内容会在任务组开放后同步到学生端。
+          </p>
+        </div>
+        <div className="prep-checklist" aria-label="课前配置进度">
+          <div className={hasGroupActivity ? "done" : ""}>
+            <span>1</span>
+            <div>
+              <strong>组织任务组</strong>
+              <small>{hasGroupActivity ? "已添加课堂项目" : "先添加一个项目"}</small>
+            </div>
+            {hasGroupActivity && <CheckCircle2 size={17} />}
+          </div>
+          <div className={hasActivity ? "done" : ""}>
+            <span>2</span>
+            <div>
+              <strong>配置当前项目</strong>
+              <small>{hasActivity ? "可在右侧预览" : "添加问题、资源或选项"}</small>
+            </div>
+            {hasActivity && <CheckCircle2 size={17} />}
+          </div>
+          <div className={isPublished ? "done" : ""}>
+            <span>3</span>
+            <div>
+              <strong>进入课堂控制</strong>
+              <small>{isPublished ? "任务组已经开放" : "准备好后再开放"}</small>
+            </div>
+            {isPublished && <CheckCircle2 size={17} />}
+          </div>
+        </div>
+        <div className="button-row prep-actions">
+          {!readonly && (
+            <Button kind="primary" onClick={hasActivity ? onEdit : onAdd}>
+              {hasActivity ? <Pencil size={16} /> : <Plus size={17} />}
+              {hasActivity ? "编辑教学资源" : "添加第一个项目"}
+            </Button>
+          )}
+          <Button onClick={onEnterLive} disabled={readonly}>
+            <Radio size={16} />
+            进入课堂控制
+            <ArrowUpRight size={14} />
+          </Button>
+        </div>
+      </section>
+      <section className="surface resource-preview-card">
+        <div className="section-header">
+          <h2>
+            <Eye size={17} /> 学生端预览
+          </h2>
+          <span className="preview-badge">不会直接发布</span>
+        </div>
+        {activity ? (
+          <div className="resource-preview-body">
+            <div className="student-preview-topline">
+              <span className="type-pill">{TYPES[activity.type]}</span>
+              <span className="muted small">
+                {group?.title || "未分配任务组"} · {room.subject}
+              </span>
+            </div>
+            <h2>{activity.title}</h2>
+            {activity.description && (
+              <div className="preview-resource-text">
+                <span>教学资源与任务说明</span>
+                <p>{activity.description}</p>
+              </div>
+            )}
+            {activity.options?.length ? (
+              <div className="preview-options" aria-label="学生端选项预览">
+                {activity.options.map((option, index) => (
+                  <div className="preview-option" key={`${option}-${index}`}>
+                    <span className="option-letter">
+                      {activity.type === "understanding"
+                        ? ["✓", "?", "!"][index]
+                        : String.fromCharCode(65 + index)}
+                    </span>
+                    <span>{option}</span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="preview-input-placeholder">
+                学生将在这里填写自己的回答或课堂反思
+              </div>
+            )}
+            <div className="preview-footer">
+              <span>学生端只展示当前开放的项目和可填写内容。</span>
+              {!readonly && (
+                <button className="text-link" onClick={onEdit}>
+                  编辑这项内容 <ChevronRight size={15} />
+                </button>
+              )}
+            </div>
+          </div>
+        ) : (
+          <Empty icon={BookOpen} title="还没有可预览的项目">
+            从左侧任务组添加一个项目，学生端预览会显示在这里。
+          </Empty>
+        )}
+      </section>
+    </div>
+  );
+}
+
+function LiveControlStrip({
+  activity,
+  group,
+  activities,
+  busy,
+  onPrevious,
+  onNext,
+  onOpenMonitor,
+}) {
+  const index = activities.findIndex((item) => item.id === activity?.id);
+  return (
+    <section className="surface live-control-strip">
+      <div className="live-control-copy">
+        <span className="eyebrow">课堂控制 · 当前项目</span>
+        <div className="live-control-title">
+          {activity && (
+            <span className={`status ${activity.status}`}>
+              {activity.status === "live" && <i />}
+              {STATUS[activity.status]}
+            </span>
+          )}
+          <h2>{activity?.title || "还没有开放的项目"}</h2>
+        </div>
+        <p>
+          {group?.title || "未选择任务组"} · {group?.progress?.taskCount ?? activities.length} 项课堂项目
+          {index >= 0 ? ` · 当前第 ${index + 1} 项` : " · 尚未开放"}
+        </p>
+      </div>
+      <div className="live-control-actions">
+        <div className="live-stepper" aria-label="切换当前项目">
+          <button
+            className="icon-btn"
+            aria-label="上一个项目"
+            disabled={busy || index <= 0}
+            onClick={onPrevious}
+          >
+            <ArrowLeft size={17} />
+          </button>
+          <button
+            className="icon-btn"
+            aria-label="下一个项目"
+            disabled={busy || index < 0 || index >= activities.length - 1}
+            onClick={onNext}
+          >
+            <ChevronRight size={17} />
+          </button>
+        </div>
+        <Button onClick={onOpenMonitor}>
+          <Eye size={16} />
+          第二屏监看
+        </Button>
+      </div>
+    </section>
+  );
+}
+
 function ActivityPanel({
   activity: a,
   room,
@@ -1258,9 +1591,12 @@ function ActivityPanel({
                 </thead>
                 <tbody>
                   {s.groups.map((g) => (
-                    <tr key={`${g.school}/${g.className}`}>
+                    <tr key={`${g.city}/${g.school}/${g.className}`}>
                       <td>
-                        <strong>{g.school}</strong>
+                        <strong>
+                          {g.city ? `${g.city} · ` : ""}
+                          {g.school}
+                        </strong>
                         <span>{g.className}</span>
                       </td>
                       <td>{g.total}</td>
@@ -1287,7 +1623,8 @@ function ActivityPanel({
               <article className="response" key={r.id}>
                 <div className="response-meta">
                   <span className="mini-avatar">{r.nickname.slice(0, 1)}</span>
-                  <strong>{r.nickname}</strong>
+                  <strong>{r.name || r.nickname}</strong>
+                  {r.student_no && <span>学号 {r.student_no}</span>}
                   <span>{MODES[r.mode]}</span>
                   <span>{fmtTime(r.created_at)}</span>
                 </div>
@@ -1517,13 +1854,13 @@ function ActivityEditor({
           />
         </label>
         <label>
-          补充说明 <span className="optional">选填</span>
+          教学资源与任务说明 <span className="optional">选填</span>
           <textarea
             rows={2}
             maxLength={1200}
             value={description}
             onChange={(e) => setDescription(e.target.value)}
-            placeholder="补充必要的情境或作答要求"
+            placeholder="填写背景材料、图示说明、情境或作答要求"
           />
         </label>
         {choice && (
@@ -1923,6 +2260,8 @@ function Student({ notify }) {
     [code, setCode] = useState(
       new URLSearchParams(location.search).get("code") ?? "",
     ),
+    [studentView, setStudentView] = useState("tasks"),
+    [profileOpen, setProfileOpen] = useState(false),
     [questionOpen, setQuestionOpen] = useState(false),
     [question, setQuestion] = useState(""),
     [busy, setBusy] = useState(false);
@@ -2019,10 +2358,56 @@ function Student({ notify }) {
             <span className="muted small">课堂 {state.room.code}</span>
             <h1>{state.room.title}</h1>
             <p>
-              {state.participant.nickname} · {MODES[state.participant.mode]}
+              {state.participant.name || state.participant.nickname} ·{" "}
+              {MODES[state.participant.mode]}
             </p>
           </div>
-          {state.room.status === "ended" ? (
+          <div className="student-role-banner">
+            <span>
+              <Radio size={16} /> 学生参与端
+            </span>
+            <small>阅读教学资源，完成当前项目并提交反馈</small>
+          </div>
+          {state.room.status !== "ended" &&
+            state.collection.fields.length > 0 && (
+              <button
+                className="text-link profile-edit-trigger"
+                onClick={() => setProfileOpen(true)}
+              >
+                <Pencil size={14} />
+                我的参与信息
+              </button>
+            )}
+          {state.showStudentStats && (
+            <div
+              className="student-view-tabs"
+              role="tablist"
+              aria-label="课堂视图"
+            >
+              <button
+                role="tab"
+                aria-selected={studentView === "tasks"}
+                onClick={() => setStudentView("tasks")}
+              >
+                我的任务
+              </button>
+              <button
+                role="tab"
+                aria-selected={studentView === "stats"}
+                onClick={() => setStudentView("stats")}
+              >
+                课堂统计
+              </button>
+            </div>
+          )}
+          {state.missingProfile?.length > 0 && state.room.status !== "ended" ? (
+            <section className="surface profile-required">
+              <h2>补充参与信息</h2>
+              <ProfileEditor state={state} onSaved={setState} notify={notify} />
+            </section>
+          ) : state.showStudentStats && studentView === "stats" ? (
+            <StatisticsPanel roomId={state.room.id} audience="student" />
+          ) : state.room.status === "ended" ? (
             <section className="surface student-wait">
               <span className="success-orbit">
                 <CheckCircle2 size={40} />
@@ -2088,6 +2473,21 @@ function Student({ notify }) {
           <div className="student-foot">无需账号 · 回答随提交自动保存</div>
         </main>
       )}
+      {profileOpen && (
+        <Modal title="我的参与信息" onClose={() => setProfileOpen(false)}>
+          <div className="modal-body">
+            <ProfileEditor
+              state={state}
+              notify={notify}
+              onClose={() => setProfileOpen(false)}
+              onSaved={(data) => {
+                setState(data);
+                setProfileOpen(false);
+              }}
+            />
+          </div>
+        </Modal>
+      )}
       {questionOpen && (
         <Modal title="向老师提问" onClose={() => setQuestionOpen(false)}>
           <form className="modal-body form-stack" onSubmit={ask}>
@@ -2116,12 +2516,29 @@ function Student({ notify }) {
 }
 function JoinForm({ initialCode, onJoined, notify }) {
   const [code, setCode] = useState(initialCode),
-    [nickname, setNickname] = useState(""),
-    [school, setSchool] = useState(""),
-    [className, setClassName] = useState(""),
+    [profile, setProfile] = useState({}),
+    [options, setOptions] = useState(null),
+    [optionsError, setOptionsError] = useState(""),
+    [configTick, setConfigTick] = useState(0),
     [mode, setMode] = useState("individual"),
     [size, setSize] = useState(4),
     [busy, setBusy] = useState(false);
+  useEffect(() => {
+    setOptions(null);
+    setOptionsError("");
+    if (!/^\d{6}$/.test(code)) return;
+    let active = true;
+    api(`/api/join/options?code=${encodeURIComponent(code)}`)
+      .then((d) => {
+        if (active) setOptions(d);
+      })
+      .catch((e) => {
+        if (active) setOptionsError(e.message);
+      });
+    return () => {
+      active = false;
+    };
+  }, [code, configTick]);
   async function submit(e) {
     e.preventDefault();
     setBusy(true);
@@ -2129,15 +2546,14 @@ function JoinForm({ initialCode, onJoined, notify }) {
       onJoined(
         await post("/api/join", {
           code,
-          nickname,
-          school,
-          className,
+          profile,
           mode,
           size,
         }),
       );
     } catch (e) {
       notify(e.message, true);
+      setConfigTick((n) => n + 1);
     } finally {
       setBusy(false);
     }
@@ -2159,9 +2575,10 @@ function JoinForm({ initialCode, onJoined, notify }) {
             className="code-input"
             autoFocus={!initialCode}
             value={code}
-            onChange={(e) =>
-              setCode(e.target.value.replace(/\D/g, "").slice(0, 6))
-            }
+            onChange={(e) => {
+              setCode(e.target.value.replace(/\D/g, "").slice(0, 6));
+              setProfile({});
+            }}
             inputMode="numeric"
             pattern="[0-9]{6}"
             maxLength={6}
@@ -2207,42 +2624,31 @@ function JoinForm({ initialCode, onJoined, notify }) {
             />
           </label>
         )}
-        <details className="join-details">
-          <summary>
-            昵称、学校和班级 <span>均可选填</span>
-            <ChevronDown size={16} />
-          </summary>
-          <div className="form-stack">
-            <label>
-              昵称
-              <input
-                maxLength={40}
-                value={nickname}
-                onChange={(e) => setNickname(e.target.value)}
-                placeholder="留空自动生成匿名编号，无需真实姓名"
-              />
-            </label>
-            <label>
-              学校
-              <input
-                maxLength={80}
-                value={school}
-                onChange={(e) => setSchool(e.target.value)}
-                placeholder="老师需要按学校查看时填写"
-              />
-            </label>
-            <label>
-              班级
-              <input
-                maxLength={60}
-                value={className}
-                onChange={(e) => setClassName(e.target.value)}
-                placeholder="例如：五年级 1 班"
-              />
-            </label>
+        {options && (
+          <section className="join-collection">
+            <h2>{options.title}</h2>
+            <ProfileFields
+              collection={options.collection}
+              value={profile}
+              onChange={setProfile}
+            />
+          </section>
+        )}
+        {optionsError && (
+          <div>
+            <p className="notice" role="alert">
+              {optionsError}
+            </p>
+            <button
+              className="btn plain"
+              type="button"
+              onClick={() => setConfigTick((n) => n + 1)}
+            >
+              重新读取课堂
+            </button>
           </div>
-        </details>
-        <Button kind="primary" type="submit" disabled={busy}>
+        )}
+        <Button kind="primary" type="submit" disabled={busy || !options}>
           {busy ? (
             <Loader2 className="spin" size={18} />
           ) : (
@@ -2251,7 +2657,7 @@ function JoinForm({ initialCode, onJoined, notify }) {
           加入课堂
         </Button>
         <p className="join-privacy">
-          不注册账号，不需要学号、手机号或真实姓名。
+          无需注册账号。仅采集老师开启的信息，当前会话内自动关联后续回答。
         </p>
       </form>
       <a href="/" className="text-link teacher-entry">

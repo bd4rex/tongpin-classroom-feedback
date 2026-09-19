@@ -116,7 +116,7 @@ afterEach(async () => {
   await rm(dir, { recursive: true, force: true });
 });
 
-test("教师权限、初始化锁定、来源检查与密钥隔离", async () => {
+test("教师权限、初始化锁定、请求格式与密钥隔离", async () => {
   assert.equal(
     (await request("GET", "/api/teacher/classrooms", undefined, "")).statusCode,
     401,
@@ -132,17 +132,28 @@ test("教师权限、初始化锁定、来源检查与密钥隔离", async () =>
     ).statusCode,
     409,
   );
-  const csrf = await app.inject({
+  const originCompatible = await app.inject({
     method: "POST",
     url: "/api/teacher/classrooms",
-    payload: { title: "bad" },
+    payload: { title: "不同入口仍可用" },
     headers: {
       cookie: teacherCookie,
       origin: "https://untrusted.invalid",
       "content-type": "application/json",
     },
   });
-  assert.equal(csrf.statusCode, 403);
+  assert.equal(originCompatible.statusCode, 200, originCompatible.body);
+  const wrongContentType = await app.inject({
+    method: "POST",
+    url: "/api/teacher/classrooms",
+    payload: "title=wrong-content-type",
+    headers: {
+      cookie: teacherCookie,
+      origin: "https://untrusted.invalid",
+      "content-type": "text/plain",
+    },
+  });
+  assert.equal(wrongContentType.statusCode, 415);
   assert.notEqual(app.store.meta("password").hash, "test-password-123");
   const saved = await model();
   assert.equal(saved.hasApiKey, true);
@@ -1028,4 +1039,423 @@ test("旧版逐题数据升级为独立任务组，未发布内容保持隐藏�
       .groups.length,
     1,
   );
+});
+
+async function configureCollection(
+  roomId,
+  enabled = [],
+  required = [],
+  display = {},
+) {
+  const config = app.store.teacherState(roomId).collection;
+  config.fields = config.fields.map((f) => ({
+    ...f,
+    enabled: enabled.includes(f.id),
+    required: required.includes(f.id),
+  }));
+  config.display = { ...config.display, ...display };
+  return value(
+    await request(
+      "PUT",
+      `/api/teacher/classrooms/${roomId}/collection`,
+      config,
+    ),
+  );
+}
+
+test("教师勾选采集项、城市学校联动、必填校验及未启用字段不采集", async () => {
+  const r = await room("");
+  let config = await configureCollection(
+    r.id,
+    ["city", "school", "className", "studentNo", "name"],
+    ["city", "school", "studentNo", "name"],
+  );
+  config.schools = [
+    { city: "南京市", school: "甲小学" },
+    { city: "苏州市", school: "乙小学" },
+  ];
+  value(
+    await request("PUT", `/api/teacher/classrooms/${r.id}/collection`, config),
+  );
+  const options = value(
+    await request("GET", `/api/join/options?code=${r.code}`, undefined, ""),
+  );
+  assert.deepEqual(
+    options.collection.fields.map((f) => f.id),
+    ["city", "school", "className", "studentNo", "name"],
+  );
+  assert.equal(options.collection.display, undefined);
+  assert.equal(
+    (await request("POST", "/api/join", { code: r.code }, "")).statusCode,
+    400,
+  );
+  assert.equal(
+    (
+      await request(
+        "POST",
+        "/api/join",
+        {
+          code: r.code,
+          profile: {
+            city: "南京市",
+            school: "乙小学",
+            studentNo: "0007",
+            name: "测试张三",
+          },
+        },
+        "",
+      )
+    ).statusCode,
+    400,
+  );
+  const s = await student(r.code, {
+    profile: {
+      city: "南京市",
+      school: "甲小学",
+      className: "六一",
+      studentNo: "0007",
+      name: "测试张三",
+      nickname: "未启用不应采集",
+      phone: "不应采集",
+    },
+  });
+  assert.equal(s.state.participant.city, "南京市");
+  assert.equal(s.state.participant.name, "测试张三");
+  assert.equal(s.state.participant.studentNo, "0007");
+  assert.match(s.state.participant.nickname, /^同学 /);
+  assert.equal(s.state.participant.phone, undefined);
+  const p = app.store.get(
+    "SELECT * FROM participants WHERE classroom_id=?",
+    r.id,
+  );
+  assert.equal(p.student_no, "0007");
+  assert.equal(p.name, "测试张三");
+  assert.ok(!JSON.stringify(p).includes("不应采集"));
+  assert.equal(
+    (
+      await request(
+        "PUT",
+        `/api/teacher/classrooms/${r.id}/collection`,
+        config,
+        s.cookie,
+      )
+    ).statusCode,
+    401,
+  );
+});
+
+test("同一会话恢复身份、反馈自动关联、心跳续期与重启后继续采集", async () => {
+  const r = await room("");
+  await configureCollection(r.id, ["name", "studentNo", "city"], ["name"]);
+  const s = await student(r.code, {
+    profile: { name: "测试李四", studentNo: "00109", city: "南京市" },
+  });
+  const a = await activity(r.id, { type: "text", title: "解释观察" });
+  await control(a.id);
+  const rejoin = value(
+    await request(
+      "POST",
+      "/api/join",
+      { code: r.code, profile: { name: "不应覆盖" } },
+      s.cookie,
+    ),
+  );
+  assert.equal(rejoin.participant.name, "测试李四");
+  assert.equal(app.store.roomSummary(r).total, 1);
+  value(
+    await request(
+      "POST",
+      `/api/student/activities/${a.id}/answer`,
+      { text: "观察需要证据" },
+      s.cookie,
+    ),
+  );
+  const response = app.store.stats(a.id).responses[0];
+  assert.equal(response.name, "测试李四");
+  assert.equal(response.student_no, "00109");
+  assert.equal(response.city, "南京市");
+  const hb = await request("POST", "/api/student/heartbeat", {}, s.cookie);
+  value(hb);
+  assert.ok(hb.headers["set-cookie"].startsWith(s.cookie + ";"));
+  assert.match(hb.headers["set-cookie"], /Max-Age=86400/);
+  await app.close();
+  app = await buildApp({ dataDir: dir, serveStatic: false });
+  const restored = value(
+    await request("GET", "/api/student/state", undefined, s.cookie),
+  );
+  assert.equal(restored.participant.studentNo, "00109");
+  assert.equal(restored.groups[0].completed, 1);
+  const exported = value(
+    await request("GET", `/api/teacher/classrooms/${r.id}/export?format=json`),
+  );
+  assert.equal(exported.schemaVersion, 2);
+  assert.equal(exported.participants[0].name, "测试李四");
+  assert.equal(exported.participants[0].token, undefined);
+});
+
+test("新增必填项要求当前会话补填，不新增参与端，关闭字段保留原记录", async () => {
+  const r = await room("");
+  const s = await student(r.code);
+  const a = await activity(r.id, { type: "text", title: "记录观察" });
+  await control(a.id);
+  await configureCollection(r.id, ["name", "city"], ["name", "city"]);
+  const state = value(
+    await request("GET", "/api/student/state", undefined, s.cookie),
+  );
+  assert.deepEqual(state.missingProfile, ["城市", "姓名"]);
+  assert.equal(
+    (
+      await request(
+        "POST",
+        `/api/student/activities/${a.id}/answer`,
+        { text: "证据" },
+        s.cookie,
+      )
+    ).statusCode,
+    409,
+  );
+  value(
+    await request(
+      "PUT",
+      "/api/student/profile",
+      { name: "测试王五", city: "无锡市", studentNo: "未开启不收集" },
+      s.cookie,
+    ),
+  );
+  value(
+    await request(
+      "POST",
+      `/api/student/activities/${a.id}/answer`,
+      { text: "证据" },
+      s.cookie,
+    ),
+  );
+  assert.equal(app.store.roomSummary(r).total, 1);
+  await configureCollection(r.id, [], []);
+  value(
+    await request(
+      "PUT",
+      "/api/student/profile",
+      { name: "伪造覆盖", studentNo: "伪造学号" },
+      s.cookie,
+    ),
+  );
+  const p = app.store.get(
+    "SELECT * FROM participants WHERE classroom_id=?",
+    r.id,
+  );
+  assert.equal(p.name, "测试王五");
+  assert.equal(p.student_no, "");
+  assert.deepEqual(
+    value(
+      await request("GET", `/api/join/options?code=${r.code}`, undefined, ""),
+    ).collection.fields,
+    [],
+  );
+});
+
+test("大屏与学生统计仅公布汇总，词云经教师公布且过滤采集身份，关闭立即生效", async () => {
+  const r = await room("");
+  await configureCollection(r.id, ["city", "school", "name", "studentNo"]);
+  const a = await activity(r.id, { type: "text", title: "生物现象" });
+  await control(a.id);
+  const draft = await activity(r.id, {
+    type: "text",
+    title: "尚未公开的任务标题",
+  });
+  const one = await student(r.code, {
+    profile: {
+      city: "南京市",
+      school: "同名小学",
+      name: "隐私姓名甲",
+      studentNo: "0000012345",
+    },
+  });
+  const two = await student(r.code, {
+    profile: {
+      city: "苏州市",
+      school: "同名小学",
+      name: "隐私姓名乙",
+      studentNo: "0000054321",
+    },
+  });
+  for (const s of [one, two])
+    value(
+      await request(
+        "POST",
+        `/api/student/activities/${a.id}/answer`,
+        {
+          text: `${s.state.participant.name} ${s.state.participant.studentNo} 光合作用 光合作用 水分 阳光`,
+        },
+        s.cookie,
+      ),
+    );
+  assert.equal(
+    (await request("GET", "/api/student/dashboard", undefined, one.cookie))
+      .statusCode,
+    403,
+  );
+  const teacher = value(
+    await request(
+      "GET",
+      `/api/teacher/classrooms/${r.id}/dashboard?activityId=${a.id}`,
+    ),
+  );
+  assert.equal(teacher.overview.participants, 2);
+  assert.equal(teacher.overview.answers, 2);
+  assert.equal(teacher.overview.schools, 2);
+  assert.equal(
+    teacher.selected.wordCloud.terms.find((t) => t.text === "光合作用").count,
+    2,
+  );
+  assert.ok(!JSON.stringify(teacher).includes("隐私姓名"));
+  assert.ok(!JSON.stringify(teacher).includes("0000012345"));
+  assert.ok(!JSON.stringify(teacher).includes(draft.title));
+  const screen = value(
+    await request(
+      "GET",
+      `/api/teacher/classrooms/${r.id}/dashboard?shared=1&activityId=${a.id}`,
+    ),
+  );
+  assert.equal(screen.selected.visible, false);
+  assert.equal(screen.selected.wordCloud, null);
+  await configureCollection(r.id, ["city", "school", "name", "studentNo"], [], {
+    studentStats: true,
+  });
+  const before = value(
+    await request("GET", "/api/student/dashboard", undefined, one.cookie),
+  );
+  assert.equal(before.selected.wordCloud, null);
+  assert.deepEqual(before.selected.distribution, []);
+  await control(a.id, "reveal");
+  const after = value(
+    await request("GET", "/api/student/dashboard", undefined, one.cookie),
+  );
+  assert.equal(after.selected.visible, true);
+  assert.equal(after.selected.wordCloud.sampleSize, 2);
+  assert.equal(
+    after.selected.wordCloud.terms.find((t) => t.text === "光合作用").count,
+    2,
+  );
+  for (const privateValue of [
+    "隐私姓名",
+    "0000012345",
+    "0000054321",
+    "participant_id",
+    "request_id",
+    "token",
+    "responses",
+  ])
+    assert.ok(!JSON.stringify(after).includes(privateValue), privateValue);
+  await configureCollection(r.id, ["city", "school", "name", "studentNo"], [], {
+    studentStats: true,
+    wordCloud: false,
+  });
+  assert.equal(
+    value(await request("GET", "/api/student/dashboard", undefined, one.cookie))
+      .selected.wordCloud,
+    null,
+  );
+  await configureCollection(r.id, [], [], { studentStats: false });
+  assert.equal(
+    (await request("GET", "/api/student/dashboard", undefined, one.cookie))
+      .statusCode,
+    403,
+  );
+});
+
+test("采集记录按教师权限分页和导出，复用课堂带设置而不带身份记录", async () => {
+  const r = await room("");
+  await configureCollection(r.id, ["name", "studentNo"], ["name"], {
+    studentStats: true,
+  });
+  const all = await Promise.all(
+    Array.from({ length: 52 }, (_, i) =>
+      student(r.code, {
+        profile: { name: `样例 ${i}`, studentNo: i === 0 ? "=1+1" : String(i) },
+      }),
+    ),
+  );
+  assert.equal(
+    (
+      await request(
+        "GET",
+        `/api/teacher/classrooms/${r.id}/participants`,
+        undefined,
+        all[0].cookie,
+      )
+    ).statusCode,
+    401,
+  );
+  const page = value(
+    await request("GET", `/api/teacher/classrooms/${r.id}/participants`),
+  );
+  assert.equal(page.total, 52);
+  assert.equal(page.rows.length, 50);
+  assert.equal(page.rows[0].token, undefined);
+  assert.equal(
+    value(
+      await request(
+        "GET",
+        `/api/teacher/classrooms/${r.id}/participants?offset=50`,
+      ),
+    ).rows.length,
+    2,
+  );
+  const csv = await request(
+    "GET",
+    `/api/teacher/classrooms/${r.id}/participants?format=csv`,
+  );
+  assert.equal(csv.statusCode, 200);
+  assert.ok(csv.body.includes('"\'=1+1"'));
+  value(await request("POST", `/api/teacher/classrooms/${r.id}/end`, {}));
+  const copy = value(
+    await request("POST", `/api/teacher/classrooms/${r.id}/duplicate`, {}),
+  );
+  assert.equal(
+    app.store.teacherState(copy.id).collection.display.studentStats,
+    true,
+  );
+  assert.equal(
+    value(
+      await request("GET", `/api/teacher/classrooms/${copy.id}/participants`),
+    ).total,
+    0,
+  );
+});
+
+test("词云按每份回答计数、排除词生效、采样和长度有界", async () => {
+  const { buildWordCloud } = await import("../server/word-cloud.js");
+  const words = buildWordCloud(
+    [
+      {
+        content: JSON.stringify({
+          text: "光合作用 光合作用 阳光 水分 张三 13812345678 test@example.com",
+        }),
+      },
+      { content: JSON.stringify({ text: "光合作用 阳光" }) },
+    ],
+    2,
+    ["张三"],
+    ["阳光"],
+  );
+  assert.equal(words.terms.find((t) => t.text === "光合作用").count, 2);
+  assert.ok(
+    words.terms.every(
+      (t) =>
+        !/[0-9@]/.test(t.text) &&
+        !t.text.includes("阳光") &&
+        !t.text.includes("张三"),
+    ),
+  );
+  const bounded = buildWordCloud(
+    Array.from({ length: 300 }, () => ({
+      content: JSON.stringify({ text: "光合作用 水分 ".repeat(250) }),
+    })),
+    9000,
+  );
+  assert.ok(bounded.characters <= 24000);
+  assert.ok(bounded.terms.length <= 50);
+  assert.equal(bounded.sampled, true);
+  assert.ok(bounded.sampleSize < 300);
 });
