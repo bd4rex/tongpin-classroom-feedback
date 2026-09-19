@@ -2,6 +2,7 @@ import {
   collectionConfig,
   publicCollection,
   profileOf,
+  participantName,
   missingProfile,
 } from "./collection.js";
 import { DatabaseSync } from "node:sqlite";
@@ -174,6 +175,20 @@ export function createStore(directory) {
   addColumn("classrooms", "collection_config", "TEXT");
   for (const name of ["city", "name", "student_no"])
     addColumn("participants", name, "TEXT NOT NULL DEFAULT ''");
+  if (
+    !db
+      .prepare("PRAGMA table_info(participants)")
+      .all()
+      .some((c) => c.name === "nickname_generated")
+  ) {
+    // Only backfill once, matching the previous release's exact per-ID label.
+    // Keep the original text and all sessions/answers; later explicit nicknames
+    // are marked on write, even when they look like an anonymous label.
+    db.exec(`BEGIN IMMEDIATE;
+      ALTER TABLE participants ADD COLUMN nickname_generated INTEGER NOT NULL DEFAULT 0;
+      UPDATE participants SET nickname_generated=1 WHERE nickname='同学 ' || upper(substr(id,1,4));
+      COMMIT;`);
+  }
   const statsCache = new Map();
   const run = (sql, ...args) => {
     if (!/teacher_sessions|SET last_seen/.test(sql)) statsCache.clear();
@@ -598,7 +613,7 @@ export function createStore(directory) {
       },
       participant: {
         ...profileOf(p),
-        nickname: p.nickname,
+        displayName: participantName(p),
         school: p.school,
         className: p.class_name,
         mode: p.mode,

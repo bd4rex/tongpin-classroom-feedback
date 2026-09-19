@@ -1,4 +1,5 @@
 import { api, post } from "./api.js";
+import { createRefreshQueue } from "./refresh-queue.js";
 import {
   CollectionSettings,
   ProfileFields,
@@ -137,17 +138,7 @@ function useRealtime(roomId, role, refresh) {
   const [connected, setConnected] = useState(false);
   useEffect(() => {
     if (!roomId) return;
-    let active = true,
-      fetching = false;
-    const update = async () => {
-      if (fetching || !active) return;
-      fetching = true;
-      try {
-        await ref.current();
-      } finally {
-        fetching = false;
-      }
-    };
+    const { update, stop } = createRefreshQueue(() => ref.current());
     const events = new EventSource(
       `/api/events?role=${role}&room=${encodeURIComponent(roomId)}`,
     );
@@ -165,7 +156,7 @@ function useRealtime(roomId, role, refresh) {
       role === "teacher" ? 4000 : 7000,
     );
     return () => {
-      active = false;
+      stop();
       events.close();
       clearInterval(timer);
       setConnected(false);
@@ -2357,7 +2348,7 @@ function Student({ notify }) {
             <span className="muted small">课堂 {state.room.code}</span>
             <h1>{state.room.title}</h1>
             <p>
-              {state.participant.name || state.participant.nickname} ·{" "}
+              {state.participant.displayName} ·{" "}
               {MODES[state.participant.mode]}
             </p>
           </div>

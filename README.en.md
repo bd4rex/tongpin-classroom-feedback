@@ -4,6 +4,8 @@
 
 Repository: [bd4rex/tongpin-classroom-feedback](https://github.com/bd4rex/tongpin-classroom-feedback). This is a public repository and can be viewed or cloned without signing in to GitHub.
 
+Current version: `0.2.1`, fixing missed classroom refreshes, AI queue cancellation, generated labels being treated as nicknames, and city validation when school collection is hidden.
+
 One teacher, one current classroom, and many students joining live. The application supports mathematics, language, science, AI, and other subjects. Audio and video remain in the existing conferencing system.
 
 Students do not need accounts or an imported roster. They enter a classroom code and, by default, provide a name or nickname, a Jiangsu city, a school, and a grade/class. Teachers can change which fields are shown and required. The current student entry is designed for individual participation; group and whole-class modes are not shown there yet.
@@ -50,6 +52,7 @@ The server no longer compares the browser `Origin` with the server `Host`, so `l
 - Group progress shows completed, in progress, and not started, with optional aggregation by the school and class students enter themselves.
 - Students can switch tasks freely. Unsubmitted answers and AI question drafts are temporarily kept in the current browser tab; retention after closing it is not guaranteed.
 - SSE notifications and reconnection, with automatic polling when the live connection fails.
+- Notifications received during a state request are coalesced into a follow-up refresh. Each connection keeps one request in flight without dropping the final update.
 - Submission counts and rates, answer distributions, accuracy against reference answers, online participation endpoints, and aggregation by self-reported school or class.
 - Students can ask the teacher questions; other students cannot see their original text.
 - CSV answer export and complete JSON record export, including activities, answers, questions, analyses, and AI interactions.
@@ -61,6 +64,8 @@ The server no longer compares the browser `Origin` with the server `Host`, so `l
 ## Collection and classroom statistics
 
 Open **Collection and display** after creating a classroom. Each of the six fields has visible and required checkboxes. Hidden fields do not appear on the join form. Optionally enter up to 200 `city｜school` rows to offer city-dependent school choices; otherwise students type their own values. No student roster is needed.
+
+When school collection is disabled, its saved catalog no longer restricts city selection: all 13 Jiangsu cities are available. Re-enabling school collection restores the catalog rules. Generated participation labels are display values, not student-provided nicknames, and cannot satisfy a newly required nickname field. Editing a name or nickname restores the value the student actually supplied.
 
 Students fill in their details once. Answers, progress, and questions remain linked to that participation endpoint after a page refresh or server restart. Heartbeats renew its cookie for 24 hours from the latest renewal. A different browser/device or cleared cookies creates a new endpoint; self-reported identity is not verified. Students can update My participation information; previously linked records then display the updated details. Newly required fields must be completed before further submissions. Disabling a field stops new collection without deleting historical values. Duplicating a classroom copies configuration, not participants or answers.
 
@@ -105,7 +110,7 @@ Saving settings does not call the model. Calls occur only for a connection test,
 
 Dashboard responses are cached for two seconds. Teacher/projection pages poll every three seconds; students poll every 6–7.5 seconds with jitter only while viewing statistics. A submission does not refresh every student's dashboard. Word-cloud sampling is bounded and statistics do not use the model queue.
 
-A full queue returns a retryable message, and rejected requests do not consume the allowance. Accepted attempts count toward the allowance, including failed or cancelled requests. Pausing or ending a group cancels requests that have not been dispatched; requests already sent to the model may finish and save their results. Interrupted requests are marked failed after a restart and are not automatically sent again.
+A full queue returns a retryable message, and rejected requests do not consume the allowance. Accepted attempts count toward the allowance, including failed or cancelled requests. Pausing or manually ending a group, or ending the classroom, immediately cancels its undispatched requests and releases their waiting slots. Resuming a group does not revive cancelled requests; other groups' queues are unaffected. Requests already sent to the model may finish and save their results. Interrupted requests are marked failed after a restart and are not automatically sent again.
 
 Model concurrency can be set to 1–16, with a waiting queue of 1–200. Teacher analysis and connection tests do not compete with outstanding student jobs; they ask the teacher to retry later while student jobs remain. During an analysis or connection test, new student requests ask students to retry later.
 

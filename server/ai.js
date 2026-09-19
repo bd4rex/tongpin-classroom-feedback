@@ -241,6 +241,28 @@ export function createAI(store, fetchImpl = fetch, notify = () => {}) {
   function changed(job) {
     notify(job.participant_id, store.activity(job.activity_id).classroom_id);
   }
+  function cancelQueued({ groupId, classroomId }) {
+    const cancelled = queue.filter((job) => {
+      const activity = store.activity(job.activity_id);
+      return (
+        (groupId && activity.group_id === groupId) ||
+        (classroomId && activity.classroom_id === classroomId)
+      );
+    });
+    if (!cancelled.length) return;
+    store.transaction(() => {
+      for (const job of cancelled)
+        store.run(
+          "UPDATE ai_jobs SET status='cancelled',error='活动已暂停或结束，尚未开始的请求已取消',completed_at=? WHERE id=?",
+          now(),
+          job.id,
+        );
+    });
+    const ids = new Set(cancelled.map((job) => job.id));
+    for (let i = queue.length - 1; i >= 0; i--)
+      if (ids.has(queue[i].id)) queue.splice(i, 1);
+    for (const job of cancelled) changed(job);
+  }
   function pump() {
     while (!stopped && running < (config.concurrency ?? 4) && queue.length) {
       const job = queue.shift();
@@ -370,6 +392,7 @@ export function createAI(store, fetchImpl = fetch, notify = () => {}) {
     save,
     analyze,
     submit,
+    cancelQueued,
     telemetry,
     shutdown,
     test: () =>
