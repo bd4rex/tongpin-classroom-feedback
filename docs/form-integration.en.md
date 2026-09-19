@@ -1,0 +1,61 @@
+# Form integration contract (0.2.0)
+
+[中文](form-integration.md)
+
+This page describes implemented collection and export interfaces. No specific QuickForm product, arbitrary custom question types, webhooks, or third-party accounts are integrated. This is not a promise about an external product's API.
+
+## Stable fields
+
+`server/collection.js` defines six string fields. Student numbers remain strings to retain leading zeros.
+
+| ID          | Meaning        | Maximum characters |
+| ----------- | -------------- | ------------------ |
+| `city`      | City           | 40                 |
+| `school`    | School         | 80                 |
+| `className` | Class          | 60                 |
+| `studentNo` | Student number | 40                 |
+| `name`      | Name           | 40                 |
+| `nickname`  | Nickname       | 40                 |
+
+Collection configuration has `schemaVersion: 1`, all six `fields` (each with `id`, `enabled`, `required`), `schools: [{ city, school }]`, and `display: { studentStats, wordCloud, hiddenWords }`. Labels, types, and length limits are defined by the server. Configuration belongs to a classroom; there is no global student roster.
+
+## Implemented endpoints
+
+| Endpoint                                                   | Authorization / purpose                                                                                                     |
+| ---------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| `GET /api/teacher/classrooms/:id`                          | Teacher session; classroom state and `collection`                                                                           |
+| `PUT /api/teacher/classrooms/:id/collection`               | Teacher session; replace full configuration; rejected for ended classrooms                                                  |
+| `GET /api/join/options?code=123456`                        | Code-based access to enabled fields and school choices; no participant records or teacher display settings                  |
+| `POST /api/join`                                           | `{ code, mode, profile }`; validated by the server, issues an HttpOnly student cookie or resumes the same classroom session |
+| `PUT /api/student/profile`                                 | Student cookie; update own form fields without creating another participant                                                 |
+| `GET /api/student/state`                                   | Student cookie; own profile, accessible tasks, `missingProfile`, and `showStudentStats`                                     |
+| `GET /api/student/dashboard?activityId=...`                | Student cookie; available when enabled, aggregates for published tasks, results gated by per-task publication               |
+| `GET /api/teacher/classrooms/:id/dashboard?activityId=...` | Teacher cookie; preview statistics; `shared=1` applies the projection result gate                                           |
+| `GET /api/teacher/classrooms/:id/participants?offset=0`    | Teacher cookie; 50 records per page; `format=csv` exports all                                                               |
+| `GET /api/teacher/classrooms/:id/export?format=json`       | Teacher cookie; complete export with `schemaVersion: 2`                                                                     |
+
+Example join payload, subject to the classroom's enabled fields:
+
+```json
+{
+  "code": "123456",
+  "mode": "individual",
+  "profile": {
+    "city": "Example City",
+    "school": "Example School",
+    "className": "Grade 5 Class 1",
+    "studentNo": "000012",
+    "name": "Example Student"
+  }
+}
+```
+
+These are application session endpoints, not a third-party API-key or cross-origin authentication system. The server no longer compares `Origin` with `Host`, so school deployments can use multiple entry points. Mutations still require JSON, and cookies use `HttpOnly` and `SameSite=Strict`. Do not put student cookies, teacher cookies, or model keys in external forms.
+
+## Export relationships and future adaptation
+
+The JSON contains `participants`, `collection`, `room`, `groups`, `activities`, `questions`, and `aiInteractions`; teacher analyses are under `activities[].analysis`. Join `participants[].id` to `activities[].stats.responses[].participant_id` and the `participant_id` in questions and AI interactions. Existing response database fields keep their original names; normalized participant fields use the IDs above. Session tokens are excluded. This is a teacher-detail export and must not be reused verbatim for student or projection views.
+
+After a specific QuickForm product and API are identified, a server-side adapter can map its fields to these IDs. New question types should still use group publishing and the existing session, validation, and statistics paths. Arbitrary form schemas, import, webhook delivery, external account binding, and a custom-field designer are not implemented.
+
+Validation: `npm run check`. `test/app.test.js` covers required fields, catalog validation, disabled-field rejection, session reuse, newly required fields, export relationships, permissions, word clouds, and record isolation. `npm run test:capacity` includes six-field collection, task submission, concurrent dashboard reads, and cloud sampling.

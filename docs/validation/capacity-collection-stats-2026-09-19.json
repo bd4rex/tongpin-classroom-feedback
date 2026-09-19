@@ -1,0 +1,109 @@
+{
+  "createdAt": "2026-09-18T16:42:51.744Z",
+  "environment": {
+    "platform": "darwin",
+    "arch": "arm64",
+    "cpu": "Apple M3",
+    "logicalCpus": 8,
+    "memoryGiB": 16,
+    "node": "v24.14.1"
+  },
+  "method": "独立服务进程；客户端与服务端在同一台电脑；真实本机 HTTP + SSE；单进程 SQLite；每组 2 项选择题和 1 项文字任务；6 项参与信息采集；学生按 3 种顺序连续完成；最多 200 个并行 HTTP 请求；公布词云后并行读取学生统计；无真实模型调用。",
+  "scenarios": [
+    {
+      "participants": 500,
+      "sseConnections": 500,
+      "tasksPerGroup": 3,
+      "collectedFields": 6,
+      "dashboardReadAllMs": 72,
+      "dashboardReadP95Ms": 64.7,
+      "wordCloudSampleSize": 300,
+      "dashboardFailures": 0,
+      "groupCompleted": 500,
+      "joinAllMs": 122,
+      "joinP95Ms": 33.2,
+      "publishEventP95Ms": 219.6,
+      "publishedPageReadyP95Ms": 304.4,
+      "submitAllMs": 332,
+      "submitP95Ms": 114.2,
+      "successful": 1500,
+      "failed": 0,
+      "storedAnswers": 1500,
+      "serverRssMiB": 160,
+      "serverPeakRssMiB": 160
+    },
+    {
+      "participants": 1000,
+      "sseConnections": 1000,
+      "tasksPerGroup": 3,
+      "collectedFields": 6,
+      "dashboardReadAllMs": 115,
+      "dashboardReadP95Ms": 98.4,
+      "wordCloudSampleSize": 300,
+      "dashboardFailures": 0,
+      "groupCompleted": 1000,
+      "joinAllMs": 226,
+      "joinP95Ms": 27.4,
+      "publishEventP95Ms": 83.4,
+      "publishedPageReadyP95Ms": 233.3,
+      "submitAllMs": 648,
+      "submitP95Ms": 228.3,
+      "successful": 3000,
+      "failed": 0,
+      "storedAnswers": 3000,
+      "serverRssMiB": 281,
+      "serverPeakRssMiB": 281
+    },
+    {
+      "participants": 3000,
+      "sseConnections": 3000,
+      "tasksPerGroup": 3,
+      "collectedFields": 6,
+      "dashboardReadAllMs": 324,
+      "dashboardReadP95Ms": 278.2,
+      "wordCloudSampleSize": 300,
+      "dashboardFailures": 0,
+      "groupCompleted": 3000,
+      "joinAllMs": 548,
+      "joinP95Ms": 29.7,
+      "publishEventP95Ms": 72.4,
+      "publishedPageReadyP95Ms": 507.4,
+      "submitAllMs": 1962,
+      "submitP95Ms": 671.6,
+      "successful": 9000,
+      "failed": 0,
+      "storedAnswers": 9000,
+      "serverRssMiB": 427,
+      "serverPeakRssMiB": 428
+    }
+  ],
+  "soak": {
+    "durationSeconds": 33,
+    "connections": 3000,
+    "heartbeatRequests": 18000,
+    "dashboardRequests": 18000,
+    "failed": 0,
+    "rssMiBSamples": [
+      428,
+      429,
+      446,
+      448,
+      438,
+      437
+    ]
+  },
+  "ai": {
+    "kind": "纯模拟服务，每条模拟延迟 120ms，不代表真实模型吞吐",
+    "simultaneousRequests": 100,
+    "globalConcurrency": 4,
+    "maxQueue": 40,
+    "accepted": 44,
+    "rejectedWith429": 56,
+    "completed": 44,
+    "observedUpstreamConcurrency": 4
+  },
+  "server": {
+    "peakRssMiB": 448,
+    "eventLoopP95Ms": 34
+  }
+}

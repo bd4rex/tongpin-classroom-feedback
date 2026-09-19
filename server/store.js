@@ -1,3 +1,9 @@
+import {
+  collectionConfig,
+  publicCollection,
+  profileOf,
+  missingProfile,
+} from "./collection.js";
 import { DatabaseSync } from "node:sqlite";
 import { randomUUID, randomInt, createHash } from "node:crypto";
 import { mkdirSync, chmodSync } from "node:fs";
@@ -156,6 +162,18 @@ export function createStore(directory) {
   db.exec(
     "CREATE INDEX IF NOT EXISTS activities_group ON activities(group_id); CREATE INDEX IF NOT EXISTS task_groups_classroom ON task_groups(classroom_id);",
   );
+  const addColumn = (table, name, definition) => {
+    if (
+      !db
+        .prepare(`PRAGMA table_info(${table})`)
+        .all()
+        .some((c) => c.name === name)
+    )
+      db.exec(`ALTER TABLE ${table} ADD COLUMN ${name} ${definition}`);
+  };
+  addColumn("classrooms", "collection_config", "TEXT");
+  for (const name of ["city", "name", "student_no"])
+    addColumn("participants", name, "TEXT NOT NULL DEFAULT ''");
   const statsCache = new Map();
   const run = (sql, ...args) => {
     if (!/teacher_sessions|SET last_seen/.test(sql)) statsCache.clear();
@@ -372,14 +390,14 @@ export function createStore(directory) {
       a.id,
     );
     const groups = all(
-      "SELECT p.school,p.class_name AS className,COUNT(*) AS total,COUNT(a.id) AS submitted,SUM(p.last_seen>?) AS online,COALESCE(SUM(json_extract(a.content,'$.choices')=?),0) AS correct FROM participants p LEFT JOIN answers a ON a.participant_id=p.id AND a.activity_id=? WHERE p.classroom_id=? GROUP BY p.school,p.class_name ORDER BY p.school,p.class_name",
+      "SELECT p.city,p.school,p.class_name AS className,COUNT(*) AS total,COUNT(a.id) AS submitted,SUM(p.last_seen>?) AS online,COALESCE(SUM(json_extract(a.content,'$.choices')=?),0) AS correct FROM participants p LEFT JOIN answers a ON a.participant_id=p.id AND a.activity_id=? WHERE p.classroom_id=? GROUP BY p.city,p.school,p.class_name ORDER BY p.city,p.school,p.class_name",
       now() - 75000,
       JSON.stringify(a.correct),
       a.id,
       a.classroom_id,
     );
     const rows = all(
-      `SELECT answers.*, participants.nickname,participants.school,participants.class_name,participants.mode FROM answers JOIN participants ON participants.id=answers.participant_id WHERE activity_id=? ORDER BY created_at DESC ${includeAll ? "" : "LIMIT 100"}`,
+      `SELECT answers.*, participants.nickname,participants.school,participants.class_name,participants.city,participants.name,participants.student_no,participants.mode FROM answers JOIN participants ON participants.id=answers.participant_id WHERE activity_id=? ORDER BY created_at DESC ${includeAll ? "" : "LIMIT 100"}`,
       activityId,
     ).map((r) => ({ ...r, answer: JSON.parse(r.content) }));
     const result = {
@@ -411,7 +429,7 @@ export function createStore(directory) {
   }
   function roomSummary(room) {
     const p = get(
-      "SELECT COUNT(*) AS total, COALESCE(SUM(size),0) AS represented, COUNT(DISTINCT CASE WHEN school!='未填写学校' THEN school END) AS schools, COALESCE(SUM(last_seen>?),0) AS online FROM participants WHERE classroom_id=?",
+      "SELECT COUNT(*) AS total, COALESCE(SUM(size),0) AS represented, COUNT(DISTINCT CASE WHEN school!='未填写学校' THEN json_array(city,school) END) AS schools, COALESCE(SUM(last_seen>?),0) AS online FROM participants WHERE classroom_id=?",
       now() - 75000,
       room.id,
     );
@@ -452,12 +470,18 @@ export function createStore(directory) {
         .map((a) => a.id);
       return { ...g, taskIds, progress: groupProgress(g.id, taskIds.length) };
     });
-    return { room, groups, activities, questions };
+    return {
+      room,
+      groups,
+      activities,
+      questions,
+      collection: collectionConfig(room),
+    };
   }
   function groupProgress(id, taskCount) {
     const g = group(id);
     const rows = all(
-      `WITH done AS (SELECT an.participant_id,COUNT(*) AS n FROM answers an JOIN activities a ON a.id=an.activity_id WHERE a.group_id=? GROUP BY an.participant_id), begun AS (SELECT DISTINCT v.participant_id FROM activity_visits v JOIN activities a ON a.id=v.activity_id WHERE a.group_id=?) SELECT p.school,p.class_name,COALESCE(done.n,0) AS done,(begun.participant_id IS NOT NULL) AS started FROM participants p LEFT JOIN done ON done.participant_id=p.id LEFT JOIN begun ON begun.participant_id=p.id WHERE p.classroom_id=?`,
+      `WITH done AS (SELECT an.participant_id,COUNT(*) AS n FROM answers an JOIN activities a ON a.id=an.activity_id WHERE a.group_id=? GROUP BY an.participant_id), begun AS (SELECT DISTINCT v.participant_id FROM activity_visits v JOIN activities a ON a.id=v.activity_id WHERE a.group_id=?) SELECT p.city,p.school,p.class_name,COALESCE(done.n,0) AS done,(begun.participant_id IS NOT NULL) AS started FROM participants p LEFT JOIN done ON done.participant_id=p.id LEFT JOIN begun ON begun.participant_id=p.id WHERE p.classroom_id=?`,
       id,
       id,
       g.classroom_id,
@@ -472,9 +496,10 @@ export function createStore(directory) {
     };
     const schools = new Map();
     for (const r of rows) {
-      const key = JSON.stringify([r.school, r.class_name]);
+      const key = JSON.stringify([r.city, r.school, r.class_name]);
       if (!schools.has(key))
         schools.set(key, {
+          city: r.city,
           school: r.school,
           className: r.class_name,
           total: 0,
@@ -504,6 +529,7 @@ export function createStore(directory) {
   }
   function studentState(p) {
     const room = classroom(p.classroom_id);
+    const config = collectionConfig(room);
     const published = all(
       "SELECT id FROM task_groups WHERE classroom_id=? AND status!='draft' ORDER BY position",
       room.id,
@@ -571,12 +597,16 @@ export function createStore(directory) {
         status: room.status,
       },
       participant: {
+        ...profileOf(p),
         nickname: p.nickname,
         school: p.school,
         className: p.class_name,
         mode: p.mode,
         size: p.size,
       },
+      collection: publicCollection(config),
+      missingProfile: missingProfile(p, config),
+      showStudentStats: config.display.studentStats,
       activity: current,
       groups,
       questions: all(

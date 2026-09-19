@@ -1,6 +1,6 @@
 {
   "name": "tongpin-classroom-feedback",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "type": "module",
   "engines": {
@@ -12,7 +12,7 @@
     "start": "node server/index.js",
     "test": "node --test test/*.test.js",
     "test:capacity": "node scripts/capacity.js",
-    "check": "node --check server/app.js && node --check server/store.js && node --check server/ai.js && npm test && npm run build"
+    "check": "node --check server/app.js && node --check server/store.js && node --check server/ai.js && node --check server/collection.js && node --check server/dashboard.js && node --check server/word-cloud.js && npm test && npm run build"
   },
   "dependencies": {
     "@fastify/static": "^10.1.3",

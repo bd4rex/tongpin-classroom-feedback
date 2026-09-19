@@ -92,7 +92,7 @@ if (process.argv.includes("--worker")) {
       node: process.version,
     },
     method:
-      "独立服务进程；客户端与服务端在同一台电脑；真实本机 HTTP + SSE；单进程 SQLite；每组 3 项任务，学生按 3 种顺序连续完成；最多 200 个并行 HTTP 请求；无真实模型调用。",
+      "独立服务进程；客户端与服务端在同一台电脑；真实本机 HTTP + SSE；单进程 SQLite；每组 2 项选择题和 1 项文字任务；6 项参与信息采集；学生按 3 种顺序连续完成；最多 200 个并行 HTTP 请求；公布词云后并行读取学生统计；无真实模型调用。",
     scenarios: [],
   };
   async function request(method, path, body, cookie = teacher) {
@@ -243,7 +243,7 @@ if (process.argv.includes("--worker")) {
               "POST",
               `/api/teacher/classrooms/${room.id}/activities`,
               {
-                type: "single",
+                type: n === 2 ? "text" : "single",
                 title: `任务 ${n + 1}：选择第二项`,
                 options: ["第一项", "第二项"],
                 correct: ["1"],
@@ -253,6 +253,22 @@ if (process.argv.includes("--worker")) {
         );
       const groupId = tasks[0].group_id;
       assert.ok(tasks.every((a) => a.group_id === groupId));
+      const config = success(
+        await request("GET", `/api/teacher/classrooms/${room.id}`),
+      ).data.collection;
+      config.fields = config.fields.map((f) => ({
+        ...f,
+        enabled: true,
+        required: true,
+      }));
+      config.display.studentStats = true;
+      success(
+        await request(
+          "PUT",
+          `/api/teacher/classrooms/${room.id}/collection`,
+          config,
+        ),
+      );
       const startJoin = performance.now();
       const joined = await pool(
         Array.from({ length: count }, (_, i) => i),
@@ -261,7 +277,17 @@ if (process.argv.includes("--worker")) {
             await request(
               "POST",
               "/api/join",
-              { code: room.code, nickname: `测试端 ${i}` },
+              {
+                code: room.code,
+                profile: {
+                  nickname: `测试端 ${i}`,
+                  name: `测试姓名 ${i}`,
+                  studentNo: `T-${String(i).padStart(6, "0")}`,
+                  city: `测试城市 ${i % 3}`,
+                  school: `测试学校 ${i % 12}`,
+                  className: `测试班 ${i % 24}`,
+                },
+              },
               "",
             ),
           ),
@@ -309,7 +335,11 @@ if (process.argv.includes("--worker")) {
                 await request(
                   "POST",
                   `/api/student/activities/${task.id}/answer`,
-                  { choices: ["1"] },
+                  task.type === "text"
+                    ? {
+                        text: `测试姓名 ${index} T-${String(index).padStart(6, "0")} 光合作用需要阳光和水分。记录观察，寻找证据。`,
+                      }
+                    : { choices: ["1"] },
                   person.cookie,
                 ),
               );
@@ -324,16 +354,54 @@ if (process.argv.includes("--worker")) {
       ).data;
       for (const task of state.activities) {
         assert.equal(task.stats.submitted, count);
-        assert.equal(task.stats.correctRate, 100);
+        if (task.type !== "text") assert.equal(task.stats.correctRate, 100);
       }
       assert.equal(state.groups[0].progress.completed, count);
       assert.equal(state.groups[0].progress.submitted, count * 3);
       assert.ok(submissions.every((r) => r.status === 200));
+      success(
+        await request(
+          "POST",
+          `/api/teacher/activities/${tasks[2].id}/control`,
+          { action: "reveal" },
+        ),
+      );
+      const dashboardStarted = performance.now();
+      const dashboardReads = await Promise.all(
+        joined.map((person) =>
+          request(
+            "GET",
+            `/api/student/dashboard?activityId=${tasks[2].id}`,
+            undefined,
+            person.cookie,
+          ),
+        ),
+      );
+      assert.ok(
+        dashboardReads.every(
+          (r) =>
+            r.status === 200 &&
+            r.data.overview.participants === count &&
+            r.data.selected.wordCloud?.sampleSize === 300,
+        ),
+      );
+      assert.ok(
+        dashboardReads.every(
+          (r) => !JSON.stringify(r.data).includes("测试姓名"),
+        ),
+      );
+      const dashboardAllMs = performance.now() - dashboardStarted;
       const m = await metrics();
       const result = {
         participants: count,
         sseConnections: count,
         tasksPerGroup: 3,
+        collectedFields: 6,
+        dashboardReadAllMs: Math.round(dashboardAllMs),
+        dashboardReadP95Ms: p95(dashboardReads.map((r) => r.ms)),
+        wordCloudSampleSize:
+          dashboardReads[0].data.selected.wordCloud.sampleSize,
+        dashboardFailures: 0,
         groupCompleted: state.groups[0].progress.completed,
         joinAllMs: Math.round(joinMs),
         joinP95Ms: p95(joined.map((r) => r.ms)),
@@ -359,6 +427,22 @@ if (process.argv.includes("--worker")) {
             100,
           );
           assert.ok(heartbeats.every((r) => r.status === 200));
+          const dashboards = await pool(
+            joined,
+            (p) =>
+              request(
+                "GET",
+                `/api/student/dashboard?activityId=${tasks[2].id}`,
+                undefined,
+                p.cookie,
+              ),
+            100,
+          );
+          assert.ok(
+            dashboards.every(
+              (r) => r.status === 200 && r.data.overview.answers === count * 3,
+            ),
+          );
           checks.push(await metrics());
           await wait(5000);
         }
@@ -366,6 +450,7 @@ if (process.argv.includes("--worker")) {
           durationSeconds: Math.round((performance.now() - start) / 1000),
           connections: count,
           heartbeatRequests: count * 6,
+          dashboardRequests: count * 6,
           failed: 0,
           rssMiBSamples: checks.map((m) => Math.round(m.rss / 1024 ** 2)),
         };

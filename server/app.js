@@ -21,6 +21,15 @@ import {
 } from "./store.js";
 import { templates } from "./templates.js";
 import { createAI } from "./ai.js";
+import {
+  collectionConfig,
+  normalizeCollection,
+  publicCollection,
+  normalizeProfile,
+  profileOf,
+  missingProfile,
+} from "./collection.js";
+import { createDashboard } from "./dashboard.js";
 
 const token = () => randomBytes(32).toString("hex");
 const cookieValue = (request, name) =>
@@ -48,6 +57,7 @@ export async function buildApp({
 } = {}) {
   const app = Fastify({ logger: false, bodyLimit: 32768 });
   const store = createStore(dataDir);
+  const dashboard = createDashboard(store);
   const ai = createAI(store, fetchImpl, (participantId, roomId) => {
     broadcast(roomId, "teacher");
     for (const c of clients.get(roomId) ?? [])
@@ -104,6 +114,7 @@ export async function buildApp({
   }
   function broadcast(roomId, audience = "all") {
     stateCache.delete(roomId);
+    if (audience === "all") dashboard.invalidate(roomId);
     const pending = pendingBroadcasts.get(roomId);
     if (pending) {
       if (audience === "all") pending.audience = "all";
@@ -175,21 +186,6 @@ export async function buildApp({
     if (request.url.startsWith("/api/")) {
       reply.header("Cache-Control", "no-store");
       if (["POST", "PUT", "PATCH", "DELETE"].includes(request.method)) {
-        const origin = request.headers.origin;
-        if (origin) {
-          let host;
-          try {
-            host = new URL(origin).host;
-          } catch {
-            throw new AppError("请求来源不正确", 403);
-          }
-          const allowed = [
-            request.headers.host,
-            ...(publicUrl ? [new URL(publicUrl).host] : []),
-          ];
-          if (!allowed.includes(host))
-            throw new AppError("请求来源不正确", 403);
-        }
         if (!request.headers["content-type"]?.startsWith("application/json"))
           throw new AppError("请使用 JSON 提交", 415);
       }
@@ -198,7 +194,7 @@ export async function buildApp({
   app.get("/api/health", async () => ({
     ok: true,
     app: "同频课堂反馈",
-    version: "0.1.0",
+    version: "0.2.0",
   }));
   app.get("/api/auth/status", async (request) => {
     let authenticated = false;
@@ -287,6 +283,93 @@ export async function buildApp({
       joinUrl: `${baseUrl(request)}/join?code=${state.room.code}`,
     };
   });
+  app.put(
+    "/api/teacher/classrooms/:id/collection",
+    { bodyLimit: 131072 },
+    async (request) => {
+      teacher(request);
+      const room = store.classroom(request.params.id);
+      if (room.status === "ended")
+        throw new AppError("已结束课堂的采集设置不能修改", 409);
+      const config = normalizeCollection(request.body);
+      store.run(
+        "UPDATE classrooms SET collection_config=? WHERE id=?",
+        JSON.stringify(config),
+        room.id,
+      );
+      broadcast(room.id);
+      return config;
+    },
+  );
+  app.get("/api/teacher/classrooms/:id/dashboard", async (request) => {
+    teacher(request);
+    store.classroom(request.params.id);
+    return dashboard.read(
+      request.params.id,
+      request.query.activityId,
+      request.query.shared === "1",
+    );
+  });
+  app.get(
+    "/api/teacher/classrooms/:id/participants",
+    async (request, reply) => {
+      teacher(request);
+      const room = store.classroom(request.params.id);
+      const raw = store.all(
+        "SELECT id,nickname,city,school,class_name,student_no,name,mode,size,joined_at,last_seen FROM participants WHERE classroom_id=? ORDER BY joined_at,id",
+        room.id,
+      );
+      const rows = raw.map((p) => ({
+        id: p.id,
+        ...profileOf(p),
+        mode: p.mode,
+        size: p.size,
+        joinedAt: p.joined_at,
+        online: p.last_seen > now() - 75000,
+      }));
+      if (request.query.format === "csv") {
+        const table = [
+          [
+            "参与端ID",
+            "城市",
+            "学校",
+            "班级",
+            "学号",
+            "姓名",
+            "昵称",
+            "参与方式",
+            "加入时间",
+          ],
+          ...rows.map((p) => [
+            p.id,
+            p.city,
+            p.school,
+            p.className,
+            p.studentNo,
+            p.name,
+            p.nickname,
+            p.mode,
+            new Date(p.joinedAt).toISOString(),
+          ]),
+        ];
+        return reply
+          .type("text/csv; charset=utf-8")
+          .header(
+            "Content-Disposition",
+            `attachment; filename="participants-${room.code}.csv"`,
+          )
+          .send(
+            "\uFEFF" + table.map((r) => r.map(csvCell).join(",")).join("\r\n"),
+          );
+      }
+      const offset = Math.max(0, Number(request.query.offset) || 0);
+      return {
+        total: rows.length,
+        offset,
+        rows: rows.slice(offset, offset + 50),
+      };
+    },
+  );
   app.post("/api/teacher/classrooms/:id/duplicate", async (request) => {
     teacher(request);
     if (store.get("SELECT id FROM classrooms WHERE status!='ended'"))
@@ -310,6 +393,11 @@ export async function buildApp({
         source.subject,
         source.grade,
         now(),
+      );
+      store.run(
+        "UPDATE classrooms SET collection_config=? WHERE id=?",
+        source.collection_config,
+        id,
       );
       for (const oldGroup of store.all(
         "SELECT * FROM task_groups WHERE classroom_id=? ORDER BY position",
@@ -508,7 +596,20 @@ export async function buildApp({
           `attachment; filename="classroom-${state.room.code}.json"`,
         )
         .send({
+          schemaVersion: 2,
           exportedAt: new Date().toISOString(),
+          participants: store
+            .all(
+              "SELECT id,nickname,city,school,class_name,student_no,name,mode,size,joined_at FROM participants WHERE classroom_id=?",
+              state.room.id,
+            )
+            .map((p) => ({
+              id: p.id,
+              ...profileOf(p),
+              mode: p.mode,
+              size: p.size,
+              joinedAt: p.joined_at,
+            })),
           unit: "参与端；每端一份回答，不按代表人数放大",
           ...state,
           aiInteractions: store.all(
@@ -523,6 +624,9 @@ export async function buildApp({
         "活动",
         "题型",
         "匿名称呼",
+        "城市（自填）",
+        "学号（自填）",
+        "姓名（自填）",
         "学校（自填）",
         "班级（自填）",
         "参与方式",
@@ -544,6 +648,9 @@ export async function buildApp({
           a.title,
           a.type,
           r.nickname,
+          r.city,
+          r.student_no,
+          r.name,
           r.school,
           r.class_name,
           modes[r.mode],
@@ -565,6 +672,58 @@ export async function buildApp({
       .send("\uFEFF" + rows.map((r) => r.map(csvCell).join(",")).join("\r\n"));
   });
 
+  app.get("/api/join/options", async (request) => {
+    const code = str(request.query.code, "课堂码", 6);
+    const room = store.get("SELECT * FROM classrooms WHERE code=?", code);
+    if (!room) throw new AppError("没有找到这个课堂，请核对课堂码", 404);
+    if (room.status === "ended") throw new AppError("这节课已经结束", 409);
+    return {
+      code: room.code,
+      title: room.title,
+      collection: publicCollection(collectionConfig(room)),
+    };
+  });
+  function requireProfile(p) {
+    const missing = missingProfile(
+      p,
+      collectionConfig(store.classroom(p.classroom_id)),
+    );
+    if (missing.length)
+      throw new AppError(`请先补充参与信息：${missing.join("、")}`, 409);
+  }
+  app.put("/api/student/profile", async (request) => {
+    const p = participant(request),
+      room = store.classroom(p.classroom_id);
+    if (room.status === "ended") throw new AppError("课堂已结束", 409);
+    const profile = normalizeProfile(
+      request.body ?? {},
+      collectionConfig(room),
+      profileOf(p),
+    );
+    store.run(
+      "UPDATE participants SET nickname=?,city=?,school=?,class_name=?,student_no=?,name=?,last_seen=? WHERE id=?",
+      profile.nickname || p.nickname,
+      profile.city,
+      profile.school || "未填写学校",
+      profile.className || "未填写班级",
+      profile.studentNo,
+      profile.name,
+      now(),
+      p.id,
+    );
+    dashboard.invalidate(room.id);
+    broadcast(room.id, "teacher");
+    return store.studentState(
+      store.get("SELECT * FROM participants WHERE id=?", p.id),
+    );
+  });
+  app.get("/api/student/dashboard", async (request) => {
+    const p = participant(request),
+      config = collectionConfig(store.classroom(p.classroom_id));
+    if (!config.display.studentStats)
+      throw new AppError("老师尚未开放课堂统计", 403);
+    return dashboard.read(p.classroom_id, request.query.activityId, true);
+  });
   app.post("/api/join", async (request, reply) => {
     limit(request, "join", 10000);
     const body = request.body ?? {};
@@ -583,6 +742,7 @@ export async function buildApp({
         now(),
         existing.id,
       );
+      setCookie(reply, "student", cookieValue(request, "student"), 86400);
       return store.studentState(existing);
     }
     const mode = body.mode ?? "individual";
@@ -596,24 +756,26 @@ export async function buildApp({
       throw new AppError("代表人数应为 1–100 人");
     const id = randomUUID();
     const value = token();
-    const nickname =
-      str(body.nickname ?? "", "昵称", 40, false) ||
-      `同学 ${id.slice(0, 4).toUpperCase()}`;
-    const school = str(body.school ?? "", "学校", 80, false) || "未填写学校";
-    const className =
-      str(body.className ?? "", "班级", 60, false) || "未填写班级";
+    const profile = normalizeProfile(
+      body.profile ?? body,
+      collectionConfig(room),
+    );
+    const nickname = profile.nickname || `同学 ${id.slice(0, 4).toUpperCase()}`;
     store.run(
-      "INSERT INTO participants VALUES (?,?,?,?,?,?,?,?,?,?)",
+      "INSERT INTO participants (id,classroom_id,token,nickname,school,class_name,mode,size,joined_at,last_seen,city,student_no,name) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
       id,
       room.id,
       hash(value),
       nickname,
-      school,
-      className,
+      profile.school || "未填写学校",
+      profile.className || "未填写班级",
       mode,
       size,
       now(),
       now(),
+      profile.city,
+      profile.studentNo,
+      profile.name,
     );
     setCookie(reply, "student", value, 86400);
     broadcast(room.id, "teacher");
@@ -636,9 +798,10 @@ export async function buildApp({
       return { joined: false };
     return store.studentState(p);
   });
-  app.post("/api/student/heartbeat", async (request) => {
+  app.post("/api/student/heartbeat", async (request, reply) => {
     const p = participant(request);
     store.run("UPDATE participants SET last_seen=? WHERE id=?", now(), p.id);
+    setCookie(reply, "student", cookieValue(request, "student"), 86400);
     return { ok: true };
   });
   app.post("/api/student/activities/:id/answer", async (request) => {
@@ -658,6 +821,7 @@ export async function buildApp({
       if (existing.content === serialized) return { ok: true, duplicate: true };
       throw new AppError("这项活动已提交，每个参与端提交一次", 409);
     }
+    requireProfile(p);
     if (room.status === "ended" || a.status !== "live")
       throw new AppError("当前活动已暂停或结束", 409);
     store.run(
@@ -694,6 +858,7 @@ export async function buildApp({
   });
   app.post("/api/student/questions", async (request) => {
     const p = participant(request);
+    requireProfile(p);
     const room = store.classroom(p.classroom_id);
     if (room.status === "ended") throw new AppError("课堂已结束", 409);
     const count = store.get(
@@ -716,6 +881,7 @@ export async function buildApp({
   });
   app.post("/api/student/activities/:id/ai", async (request) => {
     const p = participant(request);
+    requireProfile(p);
     return ai.submit(p, store.activity(request.params.id), request.body ?? {});
   });
   app.get("/api/events", async (request, reply) => {

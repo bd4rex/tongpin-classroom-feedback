@@ -247,9 +247,12 @@ export function GroupProgress({
               </thead>
               <tbody>
                 {p.schools.map((s) => (
-                  <tr key={`${s.school}/${s.className}`}>
+                  <tr key={`${s.city}/${s.school}/${s.className}`}>
                     <td>
-                      <strong>{s.school}</strong>
+                      <strong>
+                        {s.city ? `${s.city} · ` : ""}
+                        {s.school}
+                      </strong>
                       <span>{s.className}</span>
                     </td>
                     <td>{s.completed}</td>
