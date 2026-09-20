@@ -17,6 +17,7 @@ All times use UTC+08:00.
 - Teachers edit, preview, publish, and review feedback on one page. Students join once and retain independent task order, recoverable drafts, submission confirmation, and uninterrupted work when later groups open. Imports validate before creating draft groups, roll back atomically on failure, and deduplicate retries.
 - Preserved the original layout, a separate rollback tag, and `npm run backup`. No database schema changes. The original code reads a copy of new-version test data; reopening in the new version preserves tasks, participants, responses, login, and sessions.
 - All 44 tests, syntax checks, production build, dependency audit, and desktop/mobile Chromium flows passed. Both languages of the guide, API contract, and validation report are synchronized. Real models and school servers are outside this acceptance scope.
+- Local implementation commit: `bd358db42418dcb38e65095f6eba188eb062f643` on `codex/unified-feedback`; the rollback tag still points to the pre-change commit. Nothing has been pushed to GitHub.
 - Local port 3210 runs 0.3.0 and the health endpoint confirms the version. Original data matches the pre-change snapshot and the management password is unchanged; test records remain in the isolated QA directory.
 - Changes and verification are local only: no GitHub push, PR creation, or school production deployment. Runtime data, backups, and browser screenshots remain outside Git.
 
