@@ -6,9 +6,19 @@ All times use UTC+08:00.
 
 ## Project information
 
-- Project: Tongpin · General Classroom Feedback MVP, local version `0.2.1`.
+- Project: Tongpin · General Classroom Feedback MVP, local version `0.3.0`.
 - Repository: <https://github.com/bd4rex/tongpin-classroom-feedback>.
-- Published branch: `main`; this fix branch: `codex/review-fixes-20260919`; repository visibility: public. The first publication is complete.
+- Published branch: `main`; this feature branch: `codex/unified-feedback`; repository visibility: public. The first publication is complete.
+
+## 2026-09-20 — Unified feedback, quick preparation, and rollback (local)
+
+- Started from clean `main` at `021bb8328558bf1d2a2f0921aa19ac087a220205`, created `codex/unified-feedback`, and tagged the original code as `codex/pre-unified-feedback-20260920` before editing. The source Git bundle and consistent SQLite snapshot were verified and retained under ignored `output/backups/pre-unified-feedback-20260920/`.
+- Referenced QuickForm’s official description and local teacher edition 2.0 task, collection, data-review, and export mechanisms. Independently implemented the unified workspace, preparation templates/AI instructions, standard task-pack import/export, and per-task CSV. No QuickForm code was copied or executed, and no online QuickForm service was connected.
+- Teachers edit, preview, publish, and review feedback on one page. Students join once and retain independent task order, recoverable drafts, submission confirmation, and uninterrupted work when later groups open. Imports validate before creating draft groups, roll back atomically on failure, and deduplicate retries.
+- Preserved the original layout, a separate rollback tag, and `npm run backup`. No database schema changes. The original code reads a copy of new-version test data; reopening in the new version preserves tasks, participants, responses, login, and sessions.
+- All 44 tests, syntax checks, production build, dependency audit, and desktop/mobile Chromium flows passed. Both languages of the guide, API contract, and validation report are synchronized. Real models and school servers are outside this acceptance scope.
+- Local port 3210 runs 0.3.0 and the health endpoint confirms the version. Original data matches the pre-change snapshot and the management password is unchanged; test records remain in the isolated QA directory.
+- Changes and verification are local only: no GitHub push, PR creation, or school production deployment. Runtime data, backups, and browser screenshots remain outside Git.
 
 ## 2026-09-19 20:33 — PR #3 merged and local verification
 

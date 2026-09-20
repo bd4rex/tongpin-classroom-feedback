@@ -1,0 +1,28 @@
+{
+  "date": "2026-09-20",
+  "version": "0.3.0",
+  "data": "isolated QA classroom",
+  "teacherViewport": [
+    1440,
+    1040
+  ],
+  "mobileViewport": [
+    390,
+    844
+  ],
+  "passed": true,
+  "activities": 4,
+  "participants": 1,
+  "answers": 2,
+  "preview": true,
+  "inlineEditing": true,
+  "templateAndImport": true,
+  "portableFilePreview": true,
+  "draftPersistence": true,
+  "newGroupNonInterrupting": true,
+  "rollbackUI": true,
+  "perTaskExport": true,
+  "statisticsFollowSelection": true,
+  "mobileNoOverflow": true,
+  "pageErrors": []
+}

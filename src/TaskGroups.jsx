@@ -43,9 +43,10 @@ export function TeacherGroups({
   onEditGroup,
   onAddTask,
   readonly,
+  disabled = false,
 }) {
   return (
-    <section className="activity-list surface grouped-list">
+    <section className="activity-list surface grouped-list" inert={disabled}>
       <div className="section-header">
         <h2>
           课堂任务组 <span>{groups.length}</span>

@@ -1,8 +1,8 @@
-# Form integration contract (0.2.1)
+# Form integration contract (0.3.0)
 
 [中文](form-integration.md)
 
-This page describes implemented collection and export interfaces. No specific QuickForm product, arbitrary custom question types, webhooks, or third-party accounts are integrated. This is not a promise about an external product's API.
+This page describes implemented collection and export interfaces. QuickForm informed the task workflow, but its online service, arbitrary custom question types, webhooks, and third-party accounts are not integrated. This is not a promise about an external product's API.
 
 ## Stable fields
 
@@ -38,6 +38,17 @@ On upgrade, a one-time comparison against each participant ID identifies labels 
 | `GET /api/teacher/classrooms/:id/participants?offset=0`    | Teacher cookie; 50 records per page; `format=csv` exports all                                                               |
 | `GET /api/teacher/classrooms/:id/export?format=json`       | Teacher cookie; complete export with `schemaVersion: 2`                                                                     |
 
+New teacher preparation and per-task export endpoints:
+
+| Endpoint | Authorization / purpose |
+| --- | --- |
+| `POST /api/teacher/classrooms/:id/task-pack/preview` | Teacher cookie; validates and returns a normalized pack without creating records |
+| `POST /api/teacher/classrooms/:id/task-pack` | Teacher cookie; validates the entire pack, then atomically creates one draft group and all tasks; also requires `requestId` |
+| `GET /api/teacher/groups/:id/pack` | Teacher cookie; exports 1–12 content-only tasks, excluding identity, responses, IDs, publication state, and AI analysis |
+| `GET /api/teacher/classrooms/:id/export?format=csv&activityId=...` | Teacher cookie; complete CSV for one task in the classroom, beyond the 100-response display cap; cross-classroom IDs are rejected |
+
+A pack has `{ schemaVersion: 1, group: { title, duration }, activities: [...] }`, distinct from the full classroom export’s `schemaVersion: 2`. `duration` is the group’s open time in seconds (0–7200; zero means unlimited). Each pack contains 1–12 tasks using the existing eight types and validation rules, not arbitrary form schemas. The two POST routes allow 256 KB bodies; other routes remain at 32 KB. `requestId` is 1–80 letters, digits, or hyphens. The same classroom, ID, and content return the original group; the same ID with different content returns 409. Idempotency records use the existing `meta` table, with no schema migration. Single-task JSON is not offered; full classroom JSON remains compatible. See [preparation and rollback](unified-workspace.en.md).
+
 Example join payload, subject to the classroom's enabled fields:
 
 ```json
@@ -60,6 +71,6 @@ These are application session endpoints, not a third-party API-key or cross-orig
 
 The JSON contains `participants`, `collection`, `room`, `groups`, `activities`, `questions`, and `aiInteractions`; teacher analyses are under `activities[].analysis`. Join `participants[].id` to `activities[].stats.responses[].participant_id` and the `participant_id` in questions and AI interactions. Existing response database fields keep their original names; normalized participant fields use the IDs above. Session tokens are excluded. This is a teacher-detail export and must not be reused verbatim for student or projection views.
 
-After a specific QuickForm product and API are identified, a server-side adapter can map its fields to these IDs. New question types should still use group publishing and the existing session, validation, and statistics paths. Arbitrary form schemas, import, webhook delivery, external account binding, and a custom-field designer are not implemented.
+If external QuickForm integration is needed later, a server-side adapter can map its fields to these IDs. New question types should still use group publishing and the existing session, validation, and statistics paths. This release only imports/exports Tongpin standard task packs. QuickForm data migration, arbitrary form schemas, webhook delivery, external account binding, and a custom-field designer are not implemented.
 
 Validation: `npm run check`. `test/app.test.js` covers required fields, catalog validation, disabled-field rejection, session reuse, newly required fields, export relationships, permissions, word clouds, and record isolation. `npm run test:capacity` includes six-field collection, task submission, concurrent dashboard reads, and cloud sampling.

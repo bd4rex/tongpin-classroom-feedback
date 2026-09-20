@@ -1917,3 +1917,367 @@ test("关闭学校采集后名单不再限制城市，重新开启后恢复联�
     400,
   );
 });
+
+const prepPack = () => ({
+  schemaVersion: 1,
+  group: { title: "概念检查", duration: 0 },
+  activities: [
+    {
+      type: "single",
+      title: "核心概念辨析",
+      options: ["观点一", "观点二"],
+      correct: ["1"],
+    },
+    {
+      type: "text",
+      title: "解释你的理由",
+      description: "用自己的话简短说明。",
+    },
+  ],
+});
+
+test("task-pack preview validates every task without writing or publishing", async () => {
+  const r = await room("");
+  const path = `/api/teacher/classrooms/${r.id}/task-pack`;
+  const before = app.store.get("SELECT COUNT(*) AS n FROM task_groups").n;
+  const pack = prepPack();
+  pack.activities[0].id = "untrusted-id";
+  pack.activities[0].status = "live";
+  pack.activities[0].answers = [{ text: "must not be imported" }];
+  const preview = value(await request("POST", `${path}/preview`, pack));
+  assert.equal(preview.activities.length, 2);
+  assert.deepEqual(preview.activities[0].correct, ["1"]);
+  assert.equal(Object.hasOwn(preview.activities[0], "answers"), false);
+  assert.equal(Object.hasOwn(preview.activities[0], "id"), false);
+  assert.equal(Object.hasOwn(preview.activities[0], "status"), false);
+  assert.equal(
+    app.store.get("SELECT COUNT(*) AS n FROM task_groups").n,
+    before,
+  );
+  assert.equal(
+    (await request("POST", `${path}/preview`, pack, "")).statusCode,
+    401,
+  );
+  const invalid = prepPack();
+  invalid.activities[1] = {
+    type: "single",
+    title: "不完整题目",
+    options: ["只有一个选项"],
+  };
+  const rejected = await request("POST", path, {
+    ...invalid,
+    requestId: "bad-pack",
+  });
+  assert.equal(rejected.statusCode, 400);
+  assert.match(rejected.json().error, /第 2 项/);
+  assert.equal(
+    app.store.get("SELECT COUNT(*) AS n FROM task_groups").n,
+    before,
+  );
+});
+
+test("task-pack import is atomic, draft-only, and idempotent across retries", async () => {
+  const r = await room("");
+  const path = `/api/teacher/classrooms/${r.id}/task-pack`;
+  const pack = { ...prepPack(), requestId: "same-import" };
+  const first = value(await request("POST", path, pack));
+  const retry = value(await request("POST", path, pack));
+  assert.equal(first.group.status, "draft");
+  assert.equal(retry.group.id, first.group.id);
+  assert.equal(retry.duplicate, true);
+  const tasks = app.store.all(
+    "SELECT * FROM activities WHERE group_id=?",
+    first.group.id,
+  );
+  assert.equal(tasks.length, 2);
+  assert.ok(tasks.every((a) => a.status === "draft" && a.revealed === 0));
+  assert.equal(
+    (await request("POST", path, { ...pack, group: { title: "不同内容" } }))
+      .statusCode,
+    409,
+  );
+  const p = await student(r.code);
+  assert.equal(
+    value(await request("GET", "/api/student/state", undefined, p.cookie))
+      .groups.length,
+    0,
+  );
+  assert.equal(
+    (
+      await request(
+        "POST",
+        path,
+        { ...pack, requestId: "student-import" },
+        p.cookie,
+      )
+    ).statusCode,
+    401,
+  );
+});
+
+test("task-pack rolls back the whole transaction if a later insert fails", async () => {
+  const r = await room("");
+  const groups = app.store.get("SELECT COUNT(*) AS n FROM task_groups").n;
+  const add = app.store.addActivity;
+  let inserted = 0;
+  app.store.addActivity = (...args) => {
+    if (++inserted === 2) throw new Error("simulated disk write failure");
+    return add(...args);
+  };
+  try {
+    const result = await request(
+      "POST",
+      `/api/teacher/classrooms/${r.id}/task-pack`,
+      { ...prepPack(), requestId: "atomic-import" },
+    );
+    assert.equal(result.statusCode, 500);
+    assert.equal(
+      app.store.get("SELECT COUNT(*) AS n FROM task_groups").n,
+      groups,
+    );
+    assert.equal(
+      app.store.get(
+        "SELECT COUNT(*) AS n FROM activities WHERE classroom_id=?",
+        r.id,
+      ).n,
+      0,
+    );
+    assert.equal(app.store.meta(`task-pack:${r.id}:atomic-import`), null);
+  } finally {
+    app.store.addActivity = add;
+  }
+  const retried = value(
+    await request("POST", `/api/teacher/classrooms/${r.id}/task-pack`, {
+      ...prepPack(),
+      requestId: "atomic-import",
+    }),
+  );
+  assert.equal(
+    app.store.all(
+      "SELECT id FROM activities WHERE group_id=?",
+      retried.group.id,
+    ).length,
+    2,
+  );
+});
+
+test("task-pack limits, invalid schemas, and ended classroom checks leave no records", async () => {
+  const r = await room("");
+  const path = `/api/teacher/classrooms/${r.id}/task-pack`;
+  for (const pack of [
+    { ...prepPack(), schemaVersion: 9 },
+    { ...prepPack(), activities: [] },
+    {
+      ...prepPack(),
+      activities: Array(13).fill({ type: "text", title: "过多任务" }),
+    },
+    { ...prepPack(), activities: [null] },
+    { ...prepPack(), group: { title: "检查", duration: -1 } },
+    {
+      ...prepPack(),
+      activities: [
+        {
+          type: "single",
+          title: "无效答案",
+          options: ["一", "二"],
+          correct: ["9"],
+        },
+      ],
+    },
+  ])
+    assert.equal(
+      (await request("POST", path, { ...pack, requestId: "bad-pack" }))
+        .statusCode,
+      400,
+    );
+  value(await request("POST", `/api/teacher/classrooms/${r.id}/end`, {}));
+  assert.equal(
+    (await request("POST", path, { ...prepPack(), requestId: "ended-import" }))
+      .statusCode,
+    409,
+  );
+  assert.equal(
+    app.store.get(
+      "SELECT COUNT(*) AS n FROM activities WHERE classroom_id=?",
+      r.id,
+    ).n,
+    0,
+  );
+});
+
+test("portable task packs reuse teaching content without student data or published state", async () => {
+  const r = await room("");
+  const imported = value(
+    await request("POST", `/api/teacher/classrooms/${r.id}/task-pack`, {
+      ...prepPack(),
+      requestId: "first-pack",
+    }),
+  );
+  value(
+    await request("POST", `/api/teacher/groups/${imported.group.id}/control`, {
+      action: "publish",
+    }),
+  );
+  const a = app.store.all(
+    "SELECT id FROM activities WHERE group_id=? ORDER BY position",
+    imported.group.id,
+  )[0];
+  const p = await student(r.code, { name: "不得导入的学生", nickname: "" });
+  value(
+    await request(
+      "POST",
+      `/api/student/activities/${a.id}/answer`,
+      { choices: ["1"] },
+      p.cookie,
+    ),
+  );
+  const exported = await request(
+    "GET",
+    `/api/teacher/groups/${imported.group.id}/pack`,
+  );
+  const pack = value(exported);
+  assert.equal(pack.activities.length, 2);
+  assert.deepEqual(pack.activities[0].correct, ["1"]);
+  assert.equal(
+    /不得导入|participant|stats|revealed|analysis|token|group_id/.test(
+      exported.body,
+    ),
+    false,
+  );
+  assert.equal(
+    (
+      await request(
+        "GET",
+        `/api/teacher/groups/${imported.group.id}/pack`,
+        undefined,
+        p.cookie,
+      )
+    ).statusCode,
+    401,
+  );
+  const copy = value(
+    await request("POST", `/api/teacher/classrooms/${r.id}/task-pack`, {
+      ...pack,
+      requestId: "copy-pack",
+    }),
+  );
+  assert.notEqual(copy.group.id, imported.group.id);
+  assert.equal(copy.group.status, "draft");
+  const newTasks = app.store.all(
+    "SELECT id FROM activities WHERE group_id=?",
+    copy.group.id,
+  );
+  assert.ok(newTasks.every((task) => app.store.stats(task.id).submitted === 0));
+});
+
+test("per-task feedback export is complete, authenticated, scoped, and CSV-safe", async () => {
+  const r = await room("");
+  const a = await activity(r.id, { type: "text", title: "本题内容" });
+  const other = await activity(r.id, { type: "text", title: "另一题内容" });
+  await control(a.id);
+  const p = await student(r.code);
+  value(
+    await request(
+      "POST",
+      `/api/student/activities/${a.id}/answer`,
+      { text: "=1+1" },
+      p.cookie,
+    ),
+  );
+  value(
+    await request(
+      "POST",
+      `/api/student/activities/${other.id}/answer`,
+      { text: "不要导出这条" },
+      p.cookie,
+    ),
+  );
+  for (let i = 0; i < 100; i++) {
+    const extra = await student(r.code);
+    value(
+      await request(
+        "POST",
+        `/api/student/activities/${a.id}/answer`,
+        { text: `额外反馈 ${i}` },
+        extra.cookie,
+      ),
+    );
+  }
+  const path = `/api/teacher/classrooms/${r.id}/export?format=csv&activityId=${a.id}`;
+  const result = await request("GET", path);
+  assert.equal(result.statusCode, 200);
+  assert.match(result.body, /本题内容/);
+  assert.equal(result.body.split("\r\n").length, 102);
+  assert.match(result.body, /'=1\+1/);
+  assert.doesNotMatch(result.body, /另一题内容|不要导出这条/);
+  assert.equal(
+    (await request("GET", path, undefined, p.cookie)).statusCode,
+    401,
+  );
+  assert.equal(
+    (await request("GET", path.replace(a.id, "missing-task"))).statusCode,
+    404,
+  );
+  assert.equal(
+    (await request("GET", path.replace("format=csv", "format=json")))
+      .statusCode,
+    400,
+  );
+  const full = value(
+    await request("GET", `/api/teacher/classrooms/${r.id}/export?format=json`),
+  );
+  assert.equal(full.activities.length, 2);
+  assert.equal(full.schemaVersion, 2);
+  value(await request("POST", `/api/teacher/classrooms/${r.id}/end`, {}));
+  const different = await room("");
+  assert.equal(
+    (
+      await request(
+        "GET",
+        `/api/teacher/classrooms/${different.id}/export?format=csv&activityId=${a.id}`,
+      )
+    ).statusCode,
+    404,
+  );
+});
+
+test("a full-sized preparation pack round-trips within its dedicated body limit", async () => {
+  const r = await room("");
+  const pack = {
+    schemaVersion: 1,
+    group: { title: "较长的教学环节" },
+    activities: Array.from({ length: 12 }, (_, n) => ({
+      type: "text",
+      title: `任务 ${n}`,
+      description: "教学材料".repeat(300),
+    })),
+  };
+  assert.ok(Buffer.byteLength(JSON.stringify(pack)) > 32768);
+  const result = value(
+    await request("POST", `/api/teacher/classrooms/${r.id}/task-pack`, {
+      ...pack,
+      requestId: "large-content",
+    }),
+  );
+  const exported = value(
+    await request("GET", `/api/teacher/groups/${result.group.id}/pack`),
+  );
+  assert.equal(exported.activities.length, 12);
+  value(
+    await request(
+      "POST",
+      `/api/teacher/classrooms/${r.id}/task-pack/preview`,
+      exported,
+    ),
+  );
+  assert.equal(
+    (
+      await request(
+        "POST",
+        `/api/teacher/classrooms/${r.id}/task-pack/preview`,
+        { ...pack, extra: "x".repeat(262144) },
+      )
+    ).statusCode,
+    413,
+  );
+});

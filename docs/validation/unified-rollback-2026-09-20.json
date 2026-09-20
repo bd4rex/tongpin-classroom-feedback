@@ -1,0 +1,22 @@
+{
+  "date": "2026-09-20",
+  "baseline": "021bb8328558bf1d2a2f0921aa19ac087a220205",
+  "baselineVersion": "0.2.1",
+  "currentVersion": "0.3.0",
+  "data": "isolated browser QA snapshot",
+  "passed": true,
+  "checks": {
+    "oldVersionReadsNewTasks": true,
+    "teacherLoginPreserved": true,
+    "newVersionReopensAfterRollback": true,
+    "teacherSessionPreserved": true,
+    "integrity": "ok",
+    "foreignKeyViolations": 0,
+    "currentClassroom": {
+      "tasks": 4,
+      "participants": 1,
+      "answers": 2,
+      "liveGroups": 2
+    }
+  }
+}

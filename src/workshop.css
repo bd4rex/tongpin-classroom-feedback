@@ -1,0 +1,233 @@
+.unified-workspace-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 16px 20px;
+  background: #eaf4ef;
+  border: 1px solid #d5e7dd;
+  border-radius: 12px;
+  margin-bottom: 20px;
+}
+.unified-workspace-bar > div {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 18px;
+}
+.unified-workspace-bar strong {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--brand);
+  font-size: 15px;
+}
+.unified-workspace-bar span {
+  color: #55796a;
+  font-size: 13px;
+}
+.unified-workspace-bar > button {
+  flex-shrink: 0;
+  font-size: 12px;
+}
+.task-tools {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+.task-context {
+  display: flex;
+  gap: 7px;
+  align-items: center;
+  color: var(--muted);
+  font-size: 13px;
+}
+.task-tools .btn {
+  font-size: 12px;
+  padding: 9px 10px;
+}
+.inline-activity-editor {
+  margin-bottom: 20px;
+}
+.inline-editor-note {
+  margin: 18px 24px 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+.unified-classroom [inert] {
+  opacity: 0.65;
+}
+.pack-file {
+  display: grid;
+  gap: 10px;
+  font-size: 13px;
+  margin-top: 22px;
+}
+.pack-file input {
+  max-width: 100%;
+}
+.inline-activity-editor > .form-stack {
+  padding: 24px;
+}
+.unified-classroom .class-overview {
+  margin-bottom: 22px;
+}
+.unified-classroom .group-progress {
+  margin-bottom: 18px;
+}
+.unified-classroom .feedback-tabs {
+  margin-bottom: 16px;
+}
+.unified-classroom .activity-panel {
+  border-color: #d5e7dd;
+}
+.prep-guidance {
+  color: #61776d;
+  font-size: 14px;
+  line-height: 1.8;
+  margin-bottom: 20px;
+}
+.quick-pack-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+.quick-pack {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 20px 16px;
+  text-align: left;
+  border: 1px solid #dce8e1;
+  background: #f6faf7;
+  border-radius: 10px;
+}
+.quick-pack:hover {
+  background: #e9f5ed;
+  border-color: #639c80;
+}
+.quick-pack svg {
+  color: var(--teal);
+}
+.quick-pack strong {
+  font-size: 16px;
+}
+.quick-pack span {
+  font-size: 12px;
+  color: #668071;
+}
+.pack-import {
+  margin-top: 24px;
+  padding: 18px 0;
+  border-top: 1px solid var(--line);
+}
+.pack-import > summary,
+.prompt-details > summary {
+  cursor: pointer;
+  color: var(--brand);
+  font-size: 14px;
+}
+.pack-import label {
+  display: grid;
+  gap: 8px;
+  font-size: 13px;
+  margin: 18px 0 10px;
+}
+.pack-import textarea,
+.pack-import input {
+  width: 100%;
+}
+.prompt-details {
+  margin: 14px 0;
+}
+.prompt-details textarea {
+  margin-top: 10px;
+}
+.pack-preview {
+  border: 1px solid #bad6c6;
+  border-radius: 10px;
+  background: #fbfdfb;
+  padding: 22px;
+  margin-top: 12px;
+}
+.pack-preview h3 {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  font-size: 16px;
+  color: var(--brand);
+}
+.pack-preview > ol {
+  padding-left: 22px;
+  margin: 20px 0;
+}
+.pack-preview > ol > li {
+  padding-left: 4px;
+  margin-bottom: 20px;
+}
+.pack-preview li > strong {
+  display: block;
+  margin-top: 8px;
+  font-size: 15px;
+  line-height: 1.6;
+}
+.pack-preview li p {
+  color: #63796d;
+  font-size: 14px;
+  white-space: pre-wrap;
+  margin: 8px 0;
+}
+.pack-preview li ul {
+  margin: 10px 0;
+  padding-left: 20px;
+  line-height: 1.9;
+  font-size: 13px;
+}
+.student-preview .question-description {
+  white-space: pre-wrap;
+}
+.student-task-location {
+  scroll-margin-top: 20px;
+}
+@media (min-width: 1151px) {
+  .unified-classroom .grouped-list {
+    position: sticky;
+    top: 18px;
+    max-height: calc(100vh - 36px);
+    overflow-y: auto;
+  }
+}
+@media (max-width: 650px) {
+  .unified-workspace-bar {
+    align-items: flex-start;
+    padding: 14px;
+    gap: 6px;
+  }
+  .unified-workspace-bar > div {
+    gap: 8px;
+  }
+  .unified-workspace-bar span {
+    line-height: 1.6;
+    font-size: 12px;
+  }
+  .unified-workspace-bar > button {
+    padding: 6px;
+  }
+  .task-tools .button-row {
+    gap: 4px;
+  }
+  .quick-pack-grid {
+    grid-template-columns: 1fr;
+  }
+  .quick-pack {
+    gap: 6px;
+    padding: 15px;
+  }
+  .inline-activity-editor > .form-stack {
+    padding: 18px;
+  }
+}

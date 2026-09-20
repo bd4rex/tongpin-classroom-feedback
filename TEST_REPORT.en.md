@@ -2,7 +2,30 @@
 
 [中文](TEST_REPORT.md)
 
-Latest validation: 2026-09-19, version 0.2.1. This round fixes four review findings: missed notifications, AI queue cancellation, generated labels being treated as nicknames, and city validation when school collection is hidden. Tests use isolated temporary data and simulated models. No school production deployment or real-model calls were performed. The 0.2.0 functional, browser, and short capacity records are retained below.
+Latest validation: 2026-09-20, local version 0.3.0. Unified-workspace, preparation-pack, and rollback checks use isolated test data, without real-model calls or school production deployment. Historical records remain below.
+
+## 0.3.0 unified workspace, preparation packs, and rollback
+
+- `npm run check` passes 44 tests, syntax checks, and the production build. `npm audit --omit=dev` reports zero known vulnerabilities. Eight tests were added; neither 3,000-endpoint nor full-class-duration load testing was repeated.
+- Preparation packs: previews write no records; invalid tasks identify their index and leave no partial import; a simulated second insertion failure rolls back the group; retries create one group; the same ID with different content is rejected; students and anonymous clients cannot access teacher routes; ended classrooms reject imports.
+- Content reuse: export/import retains materials and reference answers, without participants, responses, publication state, or analysis. Twelve long tasks exceeding the original 32 KB limit round-trip successfully; bodies above the dedicated 256 KB limit are rejected.
+- Per-task CSV: 101 responses are exported completely, other tasks are excluded, cross-classroom IDs are rejected, and CSV formula protection plus the full classroom JSON format remain intact.
+- Real Chromium: 1440×1040 teacher desktop and 390×844 mobile viewports cover template preview, inline editing, invalid JSON feedback, fenced JSON import, portable file export/reimport preview, student-view preview, publishing, per-task export, and statistics following task selection. The original layout, reload, and return to unified layout work. No page script errors or full-page horizontal overflow were observed.
+- Student flow: one join links two answers to one participant. Task switches and reloads preserve unsent text; publishing another group does not interrupt input. Submission explicitly shows that it is saved, then proceeds to the next task. Reference answers remain hidden before publication.
+- Backups: a live WAL snapshot passes integrity, foreign-key, SHA-256, file-permission, and source-preservation checks. Subsequent source writes do not modify the snapshot.
+- Code rollback: original commit `021bb83` (0.2.1) builds independently and reads a separate copy of new-version data, preserving the current classroom’s 4 tasks, 1 participant, 2 answers, and 2 open groups, with teacher login intact. Reopening the same copy in 0.3.0 preserves the teacher session and responses. Evidence: [unified-rollback-2026-09-20.json](docs/validation/unified-rollback-2026-09-20.json).
+
+Browser regression: `test/browser/unified-workspace.js`. Run only against an isolated QA service: it ends any unfinished classroom on that test service and creates a demonstration classroom.
+
+```bash
+QA_DATA_DIR="$(mktemp -d)" node scripts/qa-server.js
+# In a separate terminal:
+npx --yes --package @playwright/cli playwright-cli --session unified-feedback open http://127.0.0.1:3211 --headed
+npx --yes --package @playwright/cli playwright-cli --session unified-feedback run-code --filename test/browser/unified-workspace.js
+```
+
+Local screenshots are Git-ignored under `output/playwright/unified-preparation.png`, `unified-teacher-desktop.png`, `unified-teacher-mobile.png`, and `unified-student-mobile.png`. These demonstrate a local simulated teaching workflow only. Real AI preparation quality, school-network behavior, and target-server capacity were not validated.
+
 
 ## 0.2.1 review-fix regressions
 

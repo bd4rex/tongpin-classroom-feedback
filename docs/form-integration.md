@@ -1,8 +1,8 @@
-# 表单扩展接口（0.2.1）
+# 表单扩展接口（0.3.0）
 
 [English](form-integration.en.md)
 
-本页描述已实现的采集与导出接口。尚未接入具体 QuickForm 产品、动态自定义题型、Webhook 或第三方账号；这不是某个外部表单产品的 API 承诺。
+本页描述已实现的采集与导出接口。已借鉴 QuickForm 任务流程，但尚未接入其在线服务、动态自定义题型、Webhook 或第三方账号；这不是某个外部表单产品的 API 承诺。
 
 ## 稳定字段
 
@@ -38,6 +38,17 @@
 | `GET /api/teacher/classrooms/:id/participants?offset=0`    | 教师 Cookie；每页 50 条参与明细；`format=csv` 导出全部                                   |
 | `GET /api/teacher/classrooms/:id/export?format=json`       | 教师 Cookie；导出 `schemaVersion: 2` 完整记录                                            |
 
+新增的教师备课与按题导出接口：
+
+| 接口 | 权限／作用 |
+| --- | --- |
+| `POST /api/teacher/classrooms/:id/task-pack/preview` | 教师 Cookie；校验并返回规范任务包，不创建记录 |
+| `POST /api/teacher/classrooms/:id/task-pack` | 教师 Cookie；校验整个包后，在事务中创建一个草稿组和全部任务；额外需要 `requestId` |
+| `GET /api/teacher/groups/:id/pack` | 教师 Cookie；导出 1–12 项的备课包，只含内容，不含身份、反馈、ID、发布状态或 AI 分析 |
+| `GET /api/teacher/classrooms/:id/export?format=csv&activityId=...` | 教师 Cookie；当前课堂单题完整 CSV，不受页面 100 条显示限制；跨课 ID 拒绝 |
+
+备课包为 `{ schemaVersion: 1, group: { title, duration }, activities: [...] }`，不是全课记录的 `schemaVersion: 2`。`duration` 为整组开放秒数（0–7200，0 不限时）；每包 1–12 项，复用现有八种任务与字段校验，不接受任意表单 Schema。两个 POST 接口的请求体上限为 256 KB，其余接口仍为 32 KB。`requestId` 为 1–80 字符的字母、数字或连字符；同一课堂相同编号与内容返回原组，编号相同但内容不同返回 409。幂等记录保存在既有 `meta` 表中，无表结构迁移。单题 JSON 不提供；全课 JSON 导出保持兼容。示例与流程见[备课与回滚](unified-workspace.md)。
+
 示例加入请求（须与该课堂启用字段一致）：
 
 ```json
@@ -60,6 +71,6 @@
 
 JSON 顶层包含 `participants`、`collection`、`room`、`groups`、`activities`、`questions`、`aiInteractions` 等；教师分析位于 `activities[].analysis`。`participants[].id` 与 `activities[].stats.responses[].participant_id`、问题及 AI 互动的 `participant_id` 关联；原始响应中的已有数据库字段保持命名，参与信息规范字段使用上表 ID。导出不包含会话令牌。导出属于教师明细，不能原样用于大屏或学生页。
 
-后续明确具体 QuickForm 项目及其 API 后，可在服务端将外部字段映射到稳定 ID，新增题型仍通过任务组发布，并让响应进入现有会话、校验和统计路径。任意表单 Schema、导入、Webhook 推送、外部账户绑定和自定义字段设计器均未实现。
+后续如需适配 QuickForm 外部接口，可在服务端将外部字段映射到稳定 ID，新增题型仍通过任务组发布，并让响应进入现有会话、校验和统计路径。本轮只实现同频标准任务包的导入／导出；QuickForm 数据迁移、任意表单 Schema、Webhook 推送、外部账户绑定和自定义字段设计器未实现。
 
 验证入口：`npm run check`；`test/app.test.js` 覆盖必填／选项校验、关闭字段拒绝新采集、会话复用、后加必填项、导出关联、权限、词云和明细隔离。`npm run test:capacity` 包含六字段采集、任务提交、并发统计读取和词云采样。
