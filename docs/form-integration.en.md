@@ -1,4 +1,4 @@
-# Form integration contract (0.3.0)
+# Form integration contract (0.4.0)
 
 [中文](form-integration.md)
 
@@ -47,7 +47,15 @@ New teacher preparation and per-task export endpoints:
 | `GET /api/teacher/groups/:id/pack` | Teacher cookie; exports 1–12 content-only tasks, excluding identity, responses, IDs, publication state, and AI analysis |
 | `GET /api/teacher/classrooms/:id/export?format=csv&activityId=...` | Teacher cookie; complete CSV for one task in the classroom, beyond the 100-response display cap; cross-classroom IDs are rejected |
 
-A pack has `{ schemaVersion: 1, group: { title, duration }, activities: [...] }`, distinct from the full classroom export’s `schemaVersion: 2`. `duration` is the group’s open time in seconds (0–7200; zero means unlimited). Each pack contains 1–12 tasks using the existing eight types and validation rules, not arbitrary form schemas. The two POST routes allow 256 KB bodies; other routes remain at 32 KB. `requestId` is 1–80 letters, digits, or hyphens. The same classroom, ID, and content return the original group; the same ID with different content returns 409. Idempotency records use the existing `meta` table, with no schema migration. Single-task JSON is not offered; full classroom JSON remains compatible. See [preparation and rollback](unified-workspace.en.md).
+A pack has `{ schemaVersion: 1, group: { title, duration }, activities: [...] }`, distinct from the full classroom export’s `schemaVersion: 2`. `duration` is the group’s open time in seconds (0–7200; zero means unlimited). Each pack contains 1–12 tasks using the existing nine types and validation rules, not arbitrary form schemas. The two POST routes allow 256 KB bodies; other routes remain at 32 KB. `requestId` is 1–80 letters, digits, or hyphens. The same classroom, ID, and content return the original group; the same ID with different content returns 409. Idempotency records use the existing `meta` table, with no schema migration. Single-task JSON is not offered; full classroom JSON remains compatible. See [preparation and rollback](unified-workspace.en.md).
+
+### Fill-in tasks and teacher notes (0.4.0)
+
+`type: "fill"` defines 1–6 blanks as `blanks: [{ label, reference }]`. The required label is at most 120 characters; the optional reference is at most 300. Students submit `{ blanks: ["first answer", "second answer"] }` with exactly the required count and 1–300 trimmed characters per blank. The server also creates labelled `answer.text` for teacher feedback and CSV; a client-supplied version cannot override it. Fill-in tasks have no automatic correct rate; the corresponding CSV field is “教师讲评” (teacher discussion).
+
+Any task can include `teacherNotes` (0–3000 characters). Packs, classroom reuse, and teacher exports preserve references and notes. Student state receives only blank labels until results are revealed, when `blankReferences` is added; hiding results removes it. Teacher notes never enter student state or shared dashboards, and student previews show neither references nor notes. These additions require 0.4.0 or later; older versions do not support `fill`.
+
+`GET /api/teacher/templates` includes `ai-everywhere`, with `groups` and suggested teaching minutes. Passing `templateId: "ai-everywhere"` to `POST /api/teacher/classrooms` atomically creates six draft groups with 12 tasks and defaults the grade to 七年级. Suggested minutes do not become countdowns. Creation does not publish, call AI, or alter an existing classroom.
 
 Example join payload, subject to the classroom's enabled fields:
 

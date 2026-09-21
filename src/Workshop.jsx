@@ -11,6 +11,7 @@ import {
   RotateCcw,
 } from "lucide-react";
 import { post } from "./api.js";
+import { BlankInputs, BlankReferences } from "./FillBlanks.jsx";
 
 export function initialWorkspace() {
   const requested = new URLSearchParams(location.search).get("workspace");
@@ -142,8 +143,9 @@ const TYPES = {
   poll: "投票",
   understanding: "理解度",
   text: "开放回答",
+  fill: "填空题",
   exit: "离堂反馈",
-  ai: "AI 探究",
+  ai: "AI 问答",
 };
 const example = {
   schemaVersion: 1,
@@ -168,7 +170,7 @@ export function PreparationAssistant({ room, onSaved, notify }) {
     [requestId, setRequestId] = useState(null),
     [topic, setTopic] = useState(room.title),
     [importOpen, setImportOpen] = useState(false);
-  const prompt = `请根据我接下来提供的教材或课程材料，为“${topic}”（学科：${room.subject}；年级：${room.grade || "按材料判断"}）设计一个教学环节的课堂反馈任务。只生成 2–4 项，总作答时间约 3–5 分钟；材料放进 description，描述清楚要做什么。先检查理解，再请学生简短说明理由。不要把整份教材变成问卷，不收集姓名、学校等身份信息，也不要生成网页、脚本或数据接口。\n仅返回一个 JSON 对象，结构参考：\n${JSON.stringify(example, null, 2)}\n可选 type：single、multiple、boolean、poll、understanding、text、exit。选项 2–8 个；correct 为从 0 开始的选项编号字符串数组，投票不设置正确答案；判断题的 0 为正确、1 为错误。understanding 和 exit 由平台提供固定填写方式，无需 options。title 不超过 500 字，description 不超过 1200 字，任务组 title 不超过 80 字；duration 为整组开放秒数，0 为不限时。不要在学生可见的 description 中写答案。材料不充分时先询问，不编造教材内容。`;
+  const prompt = `请根据我接下来提供的教材或课程材料，为“${topic}”（学科：${room.subject}；年级：${room.grade || "按材料判断"}）设计一个教学环节的课堂反馈任务。只生成 2–4 项，总作答时间约 3–5 分钟；材料放进 description，描述清楚要做什么。先检查理解，再请学生简短说明理由。不要把整份教材变成问卷，不收集姓名、学校等身份信息，也不要生成网页、脚本或数据接口。\n仅返回一个 JSON 对象，结构参考：\n${JSON.stringify(example, null, 2)}\n可选 type：single、multiple、boolean、poll、understanding、text、fill、exit。fill 为填空题，设置 blanks 数组，每项包含学生可见的 label 和教师参考答案 reference，1–6 个空；label 不超过 120 字，reference 不超过 300 字。可以设置仅教师可见的 teacherNotes（不超过 3000 字）。选项 2–8 个；correct 为从 0 开始的选项编号字符串数组，投票不设置正确答案；判断题的 0 为正确、1 为错误。understanding 和 exit 由平台提供固定填写方式，无需 options。title 不超过 500 字，description 不超过 1200 字，任务组 title 不超过 80 字；duration 为整组开放秒数，0 为不限时。不要在学生可见的 description 中写答案。材料不充分时先询问，不编造教材内容。`;
   async function validate(pack) {
     setBusy(true);
     setError("");
@@ -352,6 +354,18 @@ export function PreparationAssistant({ room, onSaved, notify }) {
                     ))}
                   </ul>
                 )}
+                {a.type === "fill" && (
+                  <BlankReferences
+                    blanks={a.blanks}
+                    references={a.blanks.map((b) => b.reference)}
+                  />
+                )}
+                {a.teacherNotes && (
+                  <details className="teacher-notes">
+                    <summary>教师讲解提示</summary>
+                    <p>{a.teacherNotes}</p>
+                  </details>
+                )}
                 {a.type === "ai" && (
                   <p className="notice">
                     此任务需要教师另外配置 AI；每端最多 {a.aiLimit} 次。
@@ -406,6 +420,8 @@ export function StudentPreview({ activity: a }) {
             </div>
           ))}
         </div>
+      ) : a.type === "fill" ? (
+        <BlankInputs blanks={a.blanks} disabled />
       ) : a.type === "exit" ? (
         <div className="preview-input-placeholder">
           我学到的内容 · 还想弄懂的问题（选填）· 课堂难度 1–5

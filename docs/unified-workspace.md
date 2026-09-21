@@ -2,6 +2,8 @@
 
 [English](unified-workspace.en.md)
 
+**0.4.0 补充**：现已内置[《无处不在的人工智能》整课](lessons/ai-everywhere.md)，并支持填空题和教师讲解提示。切换原界面仍可使用这些功能。下方代码回滚验证仅针对 0.3.0 的原有题型；包含新 `fill` 题型的课堂和备课包需要 0.4.0 或更高版本，旧程序不支持其编辑、提交或复用。回退应用前先备份当前数据，不要覆盖最新回答。
+
 ## 借鉴 QuickForm 的哪些机制
 
 参考 [QuickForm 官方仓库](https://github.com/wstlab/quickform) 的“任务 → 数据回收 → 查看与分析 → 导出复用”流程；具体对照本机教师版 2.0 的 `create_task`、`task_detail`、`submit_form`、`export_data` 与任务导入实现（本机参考仓库 HEAD 为 `6b1557568de75735732e94d6cc0b094ecc28c33f`）。官方仓库当前 README 已列出更新版本，因此这次不把本机 2.0 当成最新版本。

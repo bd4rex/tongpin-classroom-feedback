@@ -1,3 +1,5 @@
+import { aiEverywhereLesson } from "./lessons/ai-everywhere.js";
+
 export const TYPES = {
   single: "单选题",
   multiple: "多选题",
@@ -5,8 +7,9 @@ export const TYPES = {
   poll: "投票",
   understanding: "理解度",
   text: "开放回答",
+  fill: "填空题",
   exit: "离堂反馈",
-  ai: "AI 探究",
+  ai: "AI 问答",
 };
 const checkin = {
   type: "understanding",
@@ -19,6 +22,7 @@ const exit = {
   description: "回顾这节课，也留下你还想继续探究的问题。",
 };
 export const templates = [
+  aiEverywhereLesson,
   {
     id: "general",
     subject: "通用",

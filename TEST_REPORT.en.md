@@ -2,7 +2,28 @@
 
 [中文](TEST_REPORT.md)
 
-Latest validation: 2026-09-20, local version 0.3.0. Unified-workspace, preparation-pack, and rollback checks use isolated test data, without real-model calls or school production deployment. Historical records remain below.
+Latest validation: 2026-09-22, local version 0.4.0. The bundled lesson, fill-in tasks, and teacher notes were checked using isolated test data and mock AI, without school production deployment. Historical records remain below.
+
+## 0.4.0 bundled AI lesson, fill-in tasks, and teacher notes
+
+- Read and recorded SHA-256 hashes for the supplied 52-slide PPT and 40-minute script. The lesson ships with server source and does not depend on the original paths. Neither source document was changed or added to the project.
+- `npm run check` passes 49 tests, syntax checks, and the production build. Five integration tests were added: the six-group/twelve-task template and creation contract, blank and answer validation, pre-reveal reference and teacher-note isolation, completing/exporting/reusing all twelve tasks, and atomic rollback when the last task is invalid. No dependencies were added; capacity and real-model tests were not repeated.
+- The template uses only `single`/`multiple` (choice), `fill`, and `ai`. Suggested durations total 40 minutes; every group begins as an unlimited-time draft. Creation does not call a model. Existing templates and the original workspace remain available.
+- Fill-in submission validates count, types, required values, and length, then builds labelled display text on the server. Retries are idempotent. There is no automatic grading; CSV marks these responses for teacher discussion. Packs and whole-class reuse retain references and teacher notes without participants, responses, publication state, or AI history.
+- Real Chromium at 1440×1040 for teachers and 390×844 for mobile checked selection/creation, teacher notes, a choice response, fill-in recovery across task switches/reloads, uninterrupted input when another group opens, submission confirmation, continuing unfinished tasks, result publication, blank editing, and previews in both workspaces. Both AI tasks completed requests and reflections using the local mock. No page script errors or page-wide horizontal overflow; screenshots were visually inspected.
+- Ran `npm run backup` before starting local port 3210 with 0.4.0; integrity returned `ok`. All six teaching-record counts in the original database were zero. No example classroom or test student was inserted into that database. Read back the health version; teachers create the actual lesson by selecting its template.
+- Fill-in tasks require the new application. Older-code rollback evidence does not cover `fill`; see [preparation and rollback](docs/unified-workspace.en.md).
+
+The browser script is for an isolated QA server only. It ends that test server's current classroom before creating a new one:
+
+```bash
+QA_DATA_DIR="$(mktemp -d)" node scripts/qa-server.js
+# In another terminal:
+npx --yes --package @playwright/cli playwright-cli --session ai-lesson open http://127.0.0.1:3211 --headed
+npx --yes --package @playwright/cli playwright-cli --session ai-lesson run-code --filename test/browser/ai-lesson.js
+```
+
+Structured result: [ai-lesson-2026-09-22.json](docs/validation/ai-lesson-2026-09-22.json). Screenshots remain in ignored local paths `output/playwright/ai-lesson-create.png`, `ai-lesson-teacher.png`, and `ai-lesson-fill-mobile.png`. These checks do not establish target-school networking, real-model quality, or actual full-length lesson outcomes.
 
 ## 0.3.0 unified workspace, preparation packs, and rollback
 

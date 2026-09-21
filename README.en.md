@@ -4,7 +4,7 @@
 
 Repository: [bd4rex/tongpin-classroom-feedback](https://github.com/bd4rex/tongpin-classroom-feedback). This is a public repository and can be viewed or cloned without signing in to GitHub.
 
-Current local version: `0.3.0` (not pushed yet), adding a unified workspace, quick lesson preparation, portable task packs, and per-task export, with the original layout and code/data rollback retained.
+Current local version: `0.4.0` (not pushed yet), with a bundled 40-minute AI Everywhere lesson, fill-in tasks, and teacher notes. The unified workspace, quick preparation, portable packs, and per-task export remain available.
 
 One teacher, one current classroom, and many students joining live. The application supports mathematics, language, science, AI, and other subjects. Audio and video remain in the existing conferencing system.
 
@@ -46,12 +46,15 @@ The server no longer compares the browser `Origin` with the server `Host`, so `l
 
 ## Implemented features
 
+- Bundled Grade 7 AI Everywhere lesson: six segments and 12 tasks, adapted from the supplied PPT and 40-minute script. Select 无处不在的人工智能 when creating a classroom, then publish by group without importing extra files. See the [lesson and usage guide](docs/lessons/ai-everywhere.en.md) ([中文](docs/lessons/ai-everywhere.md)).
+- This lesson uses only choice, fill-in, and AI questions. Fill-in tasks have 1–6 separate inputs, recoverable drafts, per-task export, and reference answers that reach students only after publication of results. Teacher notes remain teacher-only. Fill-in responses are discussed by teachers rather than automatically marked.
+
 - Unified workspace for task editing, student-view previews, collection controls, feedback, and statistics; the original layout remains available.
 - Quick preparation templates, AI preparation instructions, validated task-pack previews, and atomic draft import. Portable packs preserve materials and reference answers without student data.
 - Complete per-task CSV export, consistent snapshots with `npm run backup`, and verified compatibility with the original code; see [preparation and rollback](docs/unified-workspace.en.md).
 
 - One current classroom and its completed history. There is no student administration, admissions, enrollment, homework, or grading system.
-- Single choice, multiple choice, true/false, polls, comprehension checks, open responses, exit feedback, and AI inquiry.
+- Single choice, multiple choice, true/false, polls, comprehension checks, open responses, fill-in tasks, exit feedback, and AI questions (formerly AI inquiry).
 - Create and edit task groups, move draft tasks, and publish, pause, resume, time, or manually end groups. Results can be shown or hidden for individual tasks.
 - Multiple groups can remain open at once. Publishing a later group leaves earlier groups open and does not force students onto a new question.
 - Group progress shows completed, in progress, and not started, with optional aggregation by the school and class students enter themselves.

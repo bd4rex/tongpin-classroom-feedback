@@ -2,6 +2,8 @@
 
 [中文](unified-workspace.md)
 
+**0.4.0 addition:** the [AI Everywhere lesson](lessons/ai-everywhere.en.md), fill-in tasks, and teacher notes are now bundled. These features remain available in the original layout. The code-rollback evidence below covers the question types supported by 0.3.0 only. Classrooms and packs containing the new `fill` type require 0.4.0 or later; older code cannot edit, submit, or reuse those tasks. Back up current data before any rollback and preserve recent responses.
+
 ## Mechanisms borrowed from QuickForm
 
 We referenced the [official QuickForm repository](https://github.com/wstlab/quickform) and its task → collection → review/analysis → export/reuse flow. The concrete code reference was the local teacher edition 2.0: `create_task`, `task_detail`, `submit_form`, `export_data`, and task import, with local repository HEAD at `6b1557568de75735732e94d6cc0b094ecc28c33f`. The current upstream README lists a newer edition; this local 2.0 snapshot is not presented as the latest release.

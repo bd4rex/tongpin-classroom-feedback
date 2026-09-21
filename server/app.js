@@ -197,7 +197,7 @@ export async function buildApp({
   app.get("/api/health", async () => ({
     ok: true,
     app: "同频课堂反馈",
-    version: "0.3.0",
+    version: "0.4.0",
   }));
   app.get("/api/auth/status", async (request) => {
     let authenticated = false;
@@ -735,7 +735,9 @@ export async function buildApp({
             ? JSON.stringify(r.answer.choices) === JSON.stringify(a.correct)
               ? "是"
               : "否"
-            : "未设置",
+            : a.type === "fill"
+              ? "教师讲评"
+              : "未设置",
           new Date(r.created_at).toISOString(),
         ]);
       }

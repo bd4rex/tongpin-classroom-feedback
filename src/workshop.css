@@ -231,3 +231,56 @@
     padding: 18px;
   }
 }
+.lesson-outline,
+.teacher-notes,
+.blank-references {
+  padding: 16px 18px;
+  background: #f4f8f5;
+  border: 1px solid #dce8e1;
+  border-radius: 10px;
+  margin: 18px 0;
+  line-height: 1.8;
+  font-size: 14px;
+}
+.teacher-notes summary,
+.lesson-outline summary {
+  cursor: pointer;
+  color: var(--brand);
+  font-weight: 600;
+}
+.teacher-notes p {
+  white-space: pre-wrap;
+  margin: 12px 0 0;
+}
+.lesson-outline ol,
+.blank-references ol {
+  padding-left: 22px;
+}
+.lesson-outline details {
+  margin: 10px 0;
+}
+.fill-blanks,
+.fill-editor-row {
+  display: grid;
+  gap: 14px;
+  margin: 16px 0;
+}
+.fill-blanks label,
+.fill-editor-row label {
+  display: grid;
+  gap: 8px;
+  font-size: 15px;
+}
+.fill-blanks input {
+  width: 100%;
+  min-width: 0;
+}
+.fill-editor {
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+.fill-editor-row {
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--line);
+}

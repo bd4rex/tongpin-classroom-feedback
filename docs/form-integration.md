@@ -1,4 +1,4 @@
-# 表单扩展接口（0.3.0）
+# 表单扩展接口（0.4.0）
 
 [English](form-integration.en.md)
 
@@ -47,7 +47,15 @@
 | `GET /api/teacher/groups/:id/pack` | 教师 Cookie；导出 1–12 项的备课包，只含内容，不含身份、反馈、ID、发布状态或 AI 分析 |
 | `GET /api/teacher/classrooms/:id/export?format=csv&activityId=...` | 教师 Cookie；当前课堂单题完整 CSV，不受页面 100 条显示限制；跨课 ID 拒绝 |
 
-备课包为 `{ schemaVersion: 1, group: { title, duration }, activities: [...] }`，不是全课记录的 `schemaVersion: 2`。`duration` 为整组开放秒数（0–7200，0 不限时）；每包 1–12 项，复用现有八种任务与字段校验，不接受任意表单 Schema。两个 POST 接口的请求体上限为 256 KB，其余接口仍为 32 KB。`requestId` 为 1–80 字符的字母、数字或连字符；同一课堂相同编号与内容返回原组，编号相同但内容不同返回 409。幂等记录保存在既有 `meta` 表中，无表结构迁移。单题 JSON 不提供；全课 JSON 导出保持兼容。示例与流程见[备课与回滚](unified-workspace.md)。
+备课包为 `{ schemaVersion: 1, group: { title, duration }, activities: [...] }`，不是全课记录的 `schemaVersion: 2`。`duration` 为整组开放秒数（0–7200，0 不限时）；每包 1–12 项，复用现有九种任务与字段校验，不接受任意表单 Schema。两个 POST 接口的请求体上限为 256 KB，其余接口仍为 32 KB。`requestId` 为 1–80 字符的字母、数字或连字符；同一课堂相同编号与内容返回原组，编号相同但内容不同返回 409。幂等记录保存在既有 `meta` 表中，无表结构迁移。单题 JSON 不提供；全课 JSON 导出保持兼容。示例与流程见[备课与回滚](unified-workspace.md)。
+
+### 填空与教师讲解提示（0.4.0）
+
+`type: "fill"` 使用 `blanks: [{ label, reference }]` 定义 1–6 个空。`label` 为必填提示，最多 120 字；`reference` 为教师参考，最多 300 字，可留空。学生提交 `{ blanks: ["第一空", "第二空"] }`，数量必须完全一致，每空去除首尾空格后为 1–300 字。服务端额外生成带提示标签的 `answer.text`，用于现有教师反馈与 CSV；客户端不能伪造该文本。填空不自动计正确率，CSV 的对应字段为“教师讲评”。
+
+任何任务可带 `teacherNotes`（0–3000 字）。备课包、整课复用和教师导出保留填空参考与提示。学生状态只含填空 `label`，公布本题结果后才增加 `blankReferences`，隐藏结果时移除；`teacherNotes` 永不进入学生状态或统计大屏。学生预览也不显示参考答案或教师提示。该新增内容需要 0.4.0 或更高版本，旧版本不支持 `fill`。
+
+`GET /api/teacher/templates` 新增 `ai-everywhere`，返回含 `groups` 和教学分钟建议的整课模板；`POST /api/teacher/classrooms` 传 `templateId: "ai-everywhere"` 原子创建六组十二项草稿，默认年级七年级，分钟数不转成限时。仅创建内容，不发布、不调用 AI、不修改已有课堂。
 
 示例加入请求（须与该课堂启用字段一致）：
 

@@ -6,6 +6,7 @@ import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { mkdirSync } from "node:fs";
 import { buildApp } from "../server/app.js";
+import { aiEverywhereLesson } from "../server/lessons/ai-everywhere.js";
 
 let app,
   dir,
@@ -2280,4 +2281,277 @@ test("a full-sized preparation pack round-trips within its dedicated body limit"
     ).statusCode,
     413,
   );
+});
+
+test("内置 AI 整课按六个环节创建，仅含选择、填空和 AI 问答", async () => {
+  const list = value(await request("GET", "/api/teacher/templates"));
+  const template = list.find((t) => t.id === "ai-everywhere");
+  assert.equal(template.source.slides, 52);
+  assert.ok(template.source.script.file.endsWith(".docx"));
+  assert.equal(
+    template.groups.reduce((n, g) => n + g.minutes, 0),
+    40,
+  );
+  assert.equal(template.activities.length, 12);
+  assert.deepEqual(
+    new Set(template.activities.map((a) => a.type)),
+    new Set(["single", "multiple", "fill", "ai"]),
+  );
+  const r = await room(template.id);
+  assert.equal(r.grade, "七年级");
+  const state = app.store.teacherState(r.id);
+  assert.equal(state.groups.length, 6);
+  assert.equal(state.activities.length, 12);
+  for (const [i, g] of state.groups.entries()) {
+    assert.equal(g.title, template.groups[i].title);
+    assert.equal(g.status, "draft");
+    assert.equal(g.duration, 0);
+    const tasks = state.activities.filter((a) => a.group_id === g.id);
+    assert.deepEqual(
+      tasks.map((a) => a.title),
+      template.groups[i].activities.map((a) => a.title),
+    );
+    assert.ok(
+      tasks.every((a) => a.status === "draft" && !a.revealed && a.teacherNotes),
+    );
+  }
+  const s = await student(r.code);
+  assert.deepEqual(s.state.groups, []);
+  assert.equal(modelCalls.length, 0);
+});
+
+test("填空逐空校验，保留草稿参考内容，并拒绝伪造的显示文本", async () => {
+  const r = await room("");
+  const content = {
+    type: "fill",
+    title: "三要素",
+    teacherNotes: "教师讲评标记",
+    blanks: [
+      { label: "学习材料", reference: "数据" },
+      { label: "学习方法", reference: "算法" },
+    ],
+  };
+  const path = `/api/teacher/classrooms/${r.id}/task-pack/preview`;
+  for (const bad of [
+    { ...content, blanks: [] },
+    { ...content, blanks: Array(7).fill(content.blanks[0]) },
+    { ...content, blanks: [{ label: " " }] },
+    { ...content, blanks: [{ label: "空", reference: "x".repeat(301) }] },
+    { ...content, teacherNotes: "x".repeat(3001) },
+  ]) {
+    assert.equal(
+      (
+        await request("POST", path, {
+          schemaVersion: 1,
+          group: { title: "测试" },
+          activities: [bad],
+        })
+      ).statusCode,
+      400,
+    );
+  }
+  assert.equal(app.store.teacherState(r.id).activities.length, 0);
+  const a = await activity(r.id, content);
+  const s = await student(r.code);
+  await control(a.id);
+  const answerPath = `/api/student/activities/${a.id}/answer`;
+  for (const body of [
+    { blanks: [] },
+    { blanks: ["数据"] },
+    { blanks: ["数据", " "] },
+    { blanks: ["数据", 1] },
+    { blanks: ["数据", "x".repeat(301)] },
+  ])
+    assert.equal(
+      (await request("POST", answerPath, body, s.cookie)).statusCode,
+      400,
+    );
+  value(
+    await request(
+      "POST",
+      answerPath,
+      { blanks: [" 数据 ", "算法"], text: "伪造文本" },
+      s.cookie,
+    ),
+  );
+  assert.equal(
+    value(
+      await request("POST", answerPath, { blanks: ["数据", "算法"] }, s.cookie),
+    ).duplicate,
+    true,
+  );
+  const stats = app.store.stats(a.id, true);
+  assert.equal(stats.submitted, 1);
+  assert.equal(stats.correctRate, null);
+  assert.deepEqual(stats.responses[0].answer, {
+    blanks: ["数据", "算法"],
+    text: "1. 学习材料：数据\n2. 学习方法：算法",
+  });
+});
+
+test("填空参考答案只在公布后可见，教师讲解与他人回答始终不向学生发送", async () => {
+  const r = await room("");
+  const a = await activity(r.id, {
+    type: "fill",
+    title: "材料",
+    teacherNotes: "私有讲解标记",
+    blanks: [{ label: "填入术语", reference: "私有参考标记" }],
+  });
+  const s = await student(r.code);
+  const other = await student(r.code, { nickname: "另一同学" });
+  await control(a.id);
+  value(
+    await request(
+      "POST",
+      `/api/student/activities/${a.id}/answer`,
+      { blanks: ["另一同学的原文"] },
+      other.cookie,
+    ),
+  );
+  const getState = async () =>
+    value(await request("GET", "/api/student/state", undefined, s.cookie));
+  let state = await getState();
+  assert.deepEqual(state.groups[0].activities[0].blanks, [
+    { label: "填入术语" },
+  ]);
+  for (const term of ["私有讲解标记", "私有参考标记", "另一同学的原文"])
+    assert.ok(!JSON.stringify(state).includes(term));
+  assert.equal(
+    (await request("GET", "/api/teacher/templates", undefined, s.cookie))
+      .statusCode,
+    401,
+  );
+  const shared = value(
+    await request(
+      "GET",
+      `/api/teacher/classrooms/${r.id}/dashboard?activityId=${a.id}&shared=1`,
+    ),
+  );
+  assert.ok(!JSON.stringify(shared).includes("私有"));
+  await control(a.id, "reveal");
+  state = await getState();
+  assert.deepEqual(state.groups[0].activities[0].blankReferences, [
+    "私有参考标记",
+  ]);
+  assert.ok(!JSON.stringify(state).includes("私有讲解标记"));
+  assert.ok(!JSON.stringify(state).includes("另一同学的原文"));
+  await control(a.id, "reveal");
+  assert.ok(!JSON.stringify(await getState()).includes("私有参考标记"));
+});
+
+test("整课可完成十二项、导出填空、复用讲解与题组，AI 使用现有独立请求队列", async () => {
+  const r = await room("ai-everywhere");
+  const s = await student(r.code);
+  const state = app.store.teacherState(r.id);
+  await model();
+  for (const group of state.groups) {
+    value(
+      await request("POST", `/api/teacher/groups/${group.id}/control`, {
+        action: "publish",
+      }),
+    );
+    for (const a of state.activities.filter((t) => t.group_id === group.id)) {
+      if (a.type === "ai") {
+        value(
+          await request(
+            "POST",
+            `/api/student/activities/${a.id}/ai`,
+            { question: "请解释这个情境中数据的作用", requestId: a.id },
+            s.cookie,
+          ),
+        );
+        await idle();
+      }
+      const answer =
+        a.type === "fill"
+          ? { blanks: a.blanks.map((b) => b.reference) }
+          : a.type === "ai"
+            ? { text: "我会核实这个建议的依据。" }
+            : { choices: a.correct };
+      value(
+        await request(
+          "POST",
+          `/api/student/activities/${a.id}/answer`,
+          answer,
+          s.cookie,
+        ),
+      );
+    }
+  }
+  const completed = value(
+    await request("GET", "/api/student/state", undefined, s.cookie),
+  );
+  assert.ok(completed.groups.every((g) => g.completed === 2));
+  assert.equal(modelCalls.length, 2);
+  assert.ok(
+    modelCalls.every((c) => !JSON.stringify(c.body).includes("测试学校")),
+  );
+  assert.ok(
+    modelCalls.every((c) => !JSON.stringify(c.body).includes("teacherNotes")),
+  );
+  const fill = state.activities.find((a) => a.type === "fill");
+  const csv = await request(
+    "GET",
+    `/api/teacher/classrooms/${r.id}/export?format=csv&activityId=${fill.id}`,
+  );
+  assert.equal(csv.statusCode, 200);
+  assert.ok(csv.body.includes(fill.blanks[0].label));
+  assert.ok(csv.body.includes("教师讲评"));
+  const group = state.groups[2];
+  const pack = value(
+    await request("GET", `/api/teacher/groups/${group.id}/pack`),
+  );
+  const imported = value(
+    await request("POST", `/api/teacher/classrooms/${r.id}/task-pack`, {
+      ...pack,
+      requestId: "fill-roundtrip",
+    }),
+  );
+  const copiedFill = app.store
+    .teacherState(r.id)
+    .activities.find(
+      (a) => a.group_id === imported.group.id && a.type === "fill",
+    );
+  assert.deepEqual(copiedFill.blanks, pack.activities[0].blanks);
+  assert.equal(copiedFill.teacherNotes, pack.activities[0].teacherNotes);
+  assert.equal(copiedFill.status, "draft");
+  assert.equal(copiedFill.stats.submitted, 0);
+  value(await request("POST", `/api/teacher/classrooms/${r.id}/end`, {}));
+  const copy = value(
+    await request("POST", `/api/teacher/classrooms/${r.id}/duplicate`, {}),
+  );
+  const next = app.store.teacherState(copy.id);
+  assert.equal(next.groups.length, 7);
+  assert.equal(next.room.total, 0);
+  assert.ok(
+    next.activities.every(
+      (a) => a.status === "draft" && a.teacherNotes && a.stats.submitted === 0,
+    ),
+  );
+  assert.ok(
+    !next.activities.some((a) =>
+      state.activities.some((old) => old.id === a.id),
+    ),
+  );
+});
+
+test("整课中任一任务无效时回退全部创建，不留下半节课", async () => {
+  const task = aiEverywhereLesson.groups.at(-1).activities.at(-1);
+  const original = task.blanks;
+  task.blanks = [];
+  try {
+    assert.equal(
+      (
+        await request("POST", "/api/teacher/classrooms", {
+          title: "不能创建",
+          templateId: "ai-everywhere",
+        })
+      ).statusCode,
+      400,
+    );
+    for (const table of ["classrooms", "task_groups", "activities"])
+      assert.equal(app.store.get(`SELECT COUNT(*) AS n FROM ${table}`).n, 0);
+  } finally {
+    task.blanks = original;
+  }
 });

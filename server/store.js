@@ -38,6 +38,27 @@ export function normalizeActivity(body) {
     options: [],
     correct: [],
   };
+  if (body.teacherNotes !== undefined) {
+    const notes = str(body.teacherNotes, "教师讲解提示", 3000, false);
+    if (notes) a.teacherNotes = notes;
+  }
+  if (a.type === "fill") {
+    if (
+      !Array.isArray(body.blanks) ||
+      body.blanks.length < 1 ||
+      body.blanks.length > 6
+    )
+      throw new AppError("填空题请设置 1–6 个空");
+    a.blanks = body.blanks.map((blank, i) => ({
+      label: str(blank?.label, `第 ${i + 1} 空提示`, 120),
+      reference: str(
+        blank?.reference ?? "",
+        `第 ${i + 1} 空参考答案`,
+        300,
+        false,
+      ),
+    }));
+  }
   if (a.type === "boolean") a.options = ["正确", "错误"];
   else if (a.type === "understanding")
     a.options = [
@@ -85,6 +106,20 @@ export function normalizeActivity(body) {
   return a;
 }
 export function normalizeAnswer(activity, body) {
+  if (activity.type === "fill") {
+    if (
+      !Array.isArray(body.blanks) ||
+      body.blanks.length !== activity.blanks.length
+    )
+      throw new AppError("请按题目填写全部空格");
+    const blanks = body.blanks.map((v, i) => str(v, `第 ${i + 1} 空`, 300));
+    return {
+      blanks,
+      text: blanks
+        .map((v, i) => `${i + 1}. ${activity.blanks[i].label}：${v}`)
+        .join("\n"),
+    };
+  }
   if (["text", "ai"].includes(activity.type))
     return { text: str(body.text, "回答／反思", 2000) };
   if (activity.type === "exit") {
@@ -352,11 +387,16 @@ export function createStore(directory) {
   function createClassroom(body) {
     const title = str(body.title, "课堂名称", 100);
     const subject = str(body.subject || "通用", "学科", 30);
-    const grade = str(body.grade ?? "", "年级／对象", 60, false);
     const template = body.templateId
       ? templates.find((t) => t.id === body.templateId)
       : null;
     if (body.templateId && !template) throw new AppError("模板不存在");
+    const grade = str(
+      body.grade ?? template?.grade ?? "",
+      "年级／对象",
+      60,
+      false,
+    );
     return transaction(() => {
       const id = randomUUID();
       let code;
@@ -372,7 +412,16 @@ export function createStore(directory) {
         grade,
         now(),
       );
-      if (template) {
+      if (template?.groups) {
+        for (const section of template.groups) {
+          const target = addGroup(id, {
+            title: section.title,
+            duration: section.duration,
+          });
+          for (const a of section.activities)
+            addActivity(id, { ...a, groupId: target.id });
+        }
+      } else if (template) {
         const explore = addGroup(id, { title: "探索与练习" }),
           reflect = addGroup(id, { title: "回顾与反思" });
         for (const a of template.activities)
@@ -567,6 +616,8 @@ export function createStore(directory) {
         revealed: !!a.revealed,
         answer: answer ? JSON.parse(answer.content) : null,
       };
+      if (a.type === "fill")
+        current.blanks = a.blanks.map(({ label }) => ({ label }));
       if (a.type === "ai") {
         current.aiLimit = a.aiLimit;
         current.jobs = all(
@@ -578,6 +629,8 @@ export function createStore(directory) {
       if (a.revealed) {
         const s = stats(a.id);
         current.correct = a.correct;
+        if (a.type === "fill")
+          current.blankReferences = a.blanks.map((b) => b.reference);
         current.results = {
           submitted: s.submitted,
           distribution: s.distribution,

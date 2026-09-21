@@ -23,8 +23,9 @@ const types = {
   poll: "投票",
   understanding: "理解度",
   text: "开放回答",
+  fill: "填空题",
   exit: "离堂反馈",
-  ai: "AI 探究",
+  ai: "AI 问答",
 };
 const Button = ({ kind = "secondary", children, ...rest }) => (
   <button className={`btn ${kind}`} {...rest}>

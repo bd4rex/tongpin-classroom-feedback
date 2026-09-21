@@ -6,9 +6,17 @@ All times use UTC+08:00.
 
 ## Project information
 
-- Project: Tongpin · General Classroom Feedback MVP, local version `0.3.0`.
+- Project: Tongpin · General Classroom Feedback MVP, local version `0.4.0`.
 - Repository: <https://github.com/bd4rex/tongpin-classroom-feedback>.
 - Published branch: `main`; this feature branch: `codex/unified-feedback`; repository visibility: public. The first publication is complete.
+
+## 2026-09-22 00:24 — Bundled AI Everywhere lesson (local)
+
+- Starting from `d05860d` on `codex/unified-feedback`, implemented the authorized lesson directly in the project. Read the 52-slide PPT and 40-minute script from the supplied Downloads paths, recording their hashes in the lesson module and bilingual guide. Original files were not changed.
+- Bundled a Grade 7, 40-minute lesson with six groups and twelve tasks using only choice, fill-in, and AI questions. Teachers select the template to create drafts and publish by group. Added blank fields, reference answers, and teacher-only notes, preserving preparation-pack reuse, classroom duplication, and the original layout.
+- `npm run check` passes 49 tests and the build. Desktop/mobile Chromium flows and both mock AI tasks pass. No real-model calls or school deployment; historical capacity results are not acceptance for this lesson.
+- Created a consistent SQLite backup under ignored `output/backups/2026-09-21T16-21-09.187Z-9d831fa4/`, with integrity `ok`. Started local port 3210 at 0.4.0 and read back health. No test classroom was added to the original data directory, and no administrator password or model settings were changed.
+- Content and guides remain on the current local feature branch. No GitHub push, PR, or remote changes. Original PPT/Word files, runtime data, backups, and browser screenshots remain outside Git.
 
 ## 2026-09-20 — Unified feedback, quick preparation, and rollback (local)
 

@@ -1,4 +1,5 @@
 import { api, post } from "./api.js";
+import { BlankInputs, BlankReferences } from "./FillBlanks.jsx";
 import {
   initialWorkspace,
   WorkspaceBar,
@@ -67,8 +68,9 @@ const TYPES = {
   poll: "投票",
   understanding: "理解度",
   text: "开放回答",
+  fill: "填空题",
   exit: "离堂反馈",
-  ai: "AI 探究",
+  ai: "AI 问答",
 };
 const STATUS = {
   draft: "待发布",
@@ -1444,6 +1446,8 @@ function PreparationPanel({
                   </div>
                 ))}
               </div>
+            ) : activity.type === "fill" ? (
+              <BlankInputs blanks={activity.blanks} disabled />
             ) : (
               <div className="preview-input-placeholder">
                 学生将在这里填写自己的回答或课堂反思
@@ -1618,7 +1622,19 @@ function ActivityPanel({
             ))}
           </div>
         )}
-        {hasText && a.status === "draft" && (
+        {a.type === "fill" && (
+          <BlankReferences
+            blanks={a.blanks}
+            references={a.blanks.map((b) => b.reference)}
+          />
+        )}
+        {a.teacherNotes && (
+          <details className="teacher-notes" key={a.id}>
+            <summary>教师讲解提示（仅教师可见）</summary>
+            <p>{a.teacherNotes}</p>
+          </details>
+        )}
+        {(hasText || a.type === "fill") && a.status === "draft" && (
           <div className="draft-note">
             <MessageCircle size={25} />
             <span>
@@ -1787,12 +1803,14 @@ function CreateClass({ templates, chosen, onClose, onSave, notify }) {
   const [templateId, setTemplateId] = useState(chosen?.id ?? "general"),
     [title, setTitle] = useState(chosen?.title ?? "今天的课堂"),
     [subject, setSubject] = useState(chosen?.subject ?? "通用"),
+    [grade, setGrade] = useState(chosen?.grade ?? ""),
     [busy, setBusy] = useState(false);
+  const selectedTemplate = templates.find((t) => t.id === templateId);
   async function submit(e) {
     e.preventDefault();
     setBusy(true);
     try {
-      await onSave({ title, subject, templateId });
+      await onSave({ title, subject, grade, templateId });
     } catch (e) {
       notify(e.message, true);
     } finally {
@@ -1823,12 +1841,22 @@ function CreateClass({ templates, chosen, onClose, onSave, notify }) {
           />
         </label>
         <label>
+          年级／对象 <span className="optional">选填</span>
+          <input
+            maxLength={60}
+            value={grade}
+            onChange={(e) => setGrade(e.target.value)}
+            placeholder="如：七年级"
+          />
+        </label>
+        <label>
           预置活动
           <select
             value={templateId}
             onChange={(e) => {
               setTemplateId(e.target.value);
               const t = templates.find((t) => t.id === e.target.value);
+              setGrade(t?.grade ?? "");
               if (t) {
                 setTitle(t.title);
                 setSubject(t.subject);
@@ -1843,6 +1871,28 @@ function CreateClass({ templates, chosen, onClose, onSave, notify }) {
             ))}
           </select>
         </label>
+        {selectedTemplate?.groups && (
+          <section className="lesson-outline" aria-label="整课安排">
+            <strong>
+              {selectedTemplate.grade} · {selectedTemplate.minutes} 分钟整课
+            </strong>
+            <p>{selectedTemplate.description}</p>
+            <details>
+              <summary>查看 {selectedTemplate.groups.length} 个教学环节</summary>
+              <ol>
+                {selectedTemplate.groups.map((g) => (
+                  <li key={g.title}>
+                    {g.title} · {g.activities.length} 项
+                  </li>
+                ))}
+              </ol>
+            </details>
+            <p>
+              创建后按环节发布整组。任务含教师讲解提示，学生看到题目和作答区。AI
+              问答需在“AI 设置”中配置模型。
+            </p>
+          </section>
+        )}
         <p className="form-help">不需要准备学生名单，创建后分享课堂码即可。</p>
         <div className="button-row end">
           <Button type="button" onClick={onClose}>
@@ -1886,6 +1936,10 @@ function ActivityEditor({
   const [type, setType] = useState(initial?.type ?? "single"),
     [title, setTitle] = useState(initial?.title ?? ""),
     [description, setDescription] = useState(initial?.description ?? ""),
+    [teacherNotes, setTeacherNotes] = useState(initial?.teacherNotes ?? ""),
+    [blanks, setBlanks] = useState(
+      initial?.blanks ?? [{ label: "", reference: "" }],
+    ),
     [options, setOptions] = useState(
       initial?.options.length ? initial.options : ["", ""],
     ),
@@ -1930,6 +1984,8 @@ function ActivityEditor({
         type,
         title,
         description,
+        teacherNotes,
+        blanks,
         options,
         correct,
         duration: 0,
@@ -2043,6 +2099,78 @@ function ActivityEditor({
             )}
           </fieldset>
         )}
+        {type === "fill" && (
+          <fieldset className="fill-editor">
+            <legend>填空设置</legend>
+            <p className="form-help">
+              每空写清填写内容。参考答案供教师讲评，公布结果前学生看不到。
+            </p>
+            {blanks.map((blank, i) => (
+              <div className="fill-editor-row" key={i}>
+                <label>
+                  第 {i + 1} 空提示
+                  <input
+                    required
+                    maxLength={120}
+                    value={blank.label}
+                    onChange={(e) =>
+                      setBlanks(
+                        blanks.map((b, n) =>
+                          n === i ? { ...b, label: e.target.value } : b,
+                        ),
+                      )
+                    }
+                  />
+                </label>
+                <label>
+                  第 {i + 1} 空参考答案 <span className="optional">选填</span>
+                  <input
+                    maxLength={300}
+                    value={blank.reference}
+                    onChange={(e) =>
+                      setBlanks(
+                        blanks.map((b, n) =>
+                          n === i ? { ...b, reference: e.target.value } : b,
+                        ),
+                      )
+                    }
+                  />
+                </label>
+                {blanks.length > 1 && (
+                  <button
+                    type="button"
+                    className="text-link"
+                    onClick={() => setBlanks(blanks.filter((_, n) => n !== i))}
+                  >
+                    删除第 {i + 1} 空
+                  </button>
+                )}
+              </div>
+            ))}
+            {blanks.length < 6 && (
+              <button
+                type="button"
+                className="text-link"
+                onClick={() =>
+                  setBlanks([...blanks, { label: "", reference: "" }])
+                }
+              >
+                <Plus size={15} />
+                添加一空
+              </button>
+            )}
+          </fieldset>
+        )}
+        <label>
+          教师讲解提示 <span className="optional">选填，仅教师可见</span>
+          <textarea
+            rows={4}
+            maxLength={3000}
+            value={teacherNotes}
+            onChange={(e) => setTeacherNotes(e.target.value)}
+            placeholder="填写讲解要点、时间安排、参考解析和追问建议"
+          />
+        </label>
         {type === "understanding" && (
           <div className="notice">
             使用三级理解度：已经理解、基本理解、需要再讲。
@@ -2764,6 +2892,7 @@ function StudentActivity({ a, roomId, notify, refresh }) {
       a.answer?.choices ?? savedDraft.choices ?? [],
     ),
     [text, setText] = useState(a.answer?.text ?? savedDraft.text ?? ""),
+    [blanks, setBlanks] = useState(a.answer?.blanks ?? savedDraft.blanks ?? []),
     [takeaway, setTakeaway] = useState(
       a.answer?.takeaway ?? savedDraft.takeaway ?? "",
     ),
@@ -2780,10 +2909,26 @@ function StudentActivity({ a, roomId, notify, refresh }) {
       else
         sessionStorage.setItem(
           draftKey,
-          JSON.stringify({ choices, text, takeaway, question, difficulty }),
+          JSON.stringify({
+            choices,
+            text,
+            blanks,
+            takeaway,
+            question,
+            difficulty,
+          }),
         );
     } catch {}
-  }, [draftKey, choices, text, takeaway, question, difficulty, a.answer]);
+  }, [
+    draftKey,
+    choices,
+    text,
+    blanks,
+    takeaway,
+    question,
+    difficulty,
+    a.answer,
+  ]);
   const closed = a.status !== "live" || a.answer;
   function select(i) {
     if (closed) return;
@@ -2804,9 +2949,11 @@ function StudentActivity({ a, roomId, notify, refresh }) {
         `/api/student/activities/${a.id}/answer`,
         a.type === "exit"
           ? { takeaway, question, difficulty }
-          : ["text", "ai"].includes(a.type)
-            ? { text }
-            : { choices },
+          : a.type === "fill"
+            ? { blanks }
+            : ["text", "ai"].includes(a.type)
+              ? { text }
+              : { choices },
       );
       await refresh();
       notify("反馈已提交");
@@ -2874,6 +3021,14 @@ function StudentActivity({ a, roomId, notify, refresh }) {
               <p className="form-help">这道题可以选择多个答案。</p>
             )}
           </div>
+        )}
+        {a.type === "fill" && (
+          <BlankInputs
+            blanks={a.blanks}
+            values={blanks}
+            onChange={setBlanks}
+            disabled={!!closed}
+          />
         )}
         {["text", "ai"].includes(a.type) && (
           <label>
@@ -2959,6 +3114,9 @@ function StudentActivity({ a, roomId, notify, refresh }) {
             <p className="green-text">
               参考答案：{a.correct.map((c) => a.options[Number(c)]).join("；")}
             </p>
+          )}
+          {a.type === "fill" && (
+            <BlankReferences blanks={a.blanks} references={a.blankReferences} />
           )}
           {a.results.distribution.map((d, i) => (
             <div className="result-row" key={i}>
