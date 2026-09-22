@@ -6,9 +6,36 @@ All times use UTC+08:00.
 
 ## Project information
 
-- Project: Tongpin · General Classroom Feedback MVP, local version `0.2.1`.
+- Project: Tongpin · General Classroom Feedback MVP, version `0.4.0`.
 - Repository: <https://github.com/bd4rex/tongpin-classroom-feedback>.
-- Published branch: `main`; this fix branch: `codex/review-fixes-20260919`; repository visibility: public. The first publication is complete.
+- Published branch: `main`; this feature branch: `codex/unified-feedback`; repository visibility: public. The first publication is complete.
+
+## 2026-09-22 10:12 — 0.4.0 GitHub publication preparation
+
+- Authorized by the user's request to update GitHub, preparing to publish the unified workspace, quick preparation, task packs, and bundled AI lesson together. After fetching, remote `main` is `021bb8328558bf1d2a2f0921aa19ac087a220205`; local `codex/unified-feedback` is `a347701db5635415299770d7adffc8feaf702b2b`, four commits ahead with no divergence.
+- Publication uses the existing 0.4.0 validation: 49 tests, syntax checks, production build, and desktop/mobile browser flows passed. Only publication documentation changed afterward. AI questions used a mock model; no school-server deployment was performed.
+- Checked the publication file list and scanned changed content for secret patterns. Original PPT/Word files, runtime databases, model configuration, environment files, backups, dependencies, and build outputs are excluded from this update.
+- Synchronized the current-version wording in both README files and prepared a PR merge into `main`. Actual push, PR, and remote-commit verification will be recorded after completion.
+
+## 2026-09-22 00:24 — Bundled AI Everywhere lesson (local)
+
+- Starting from `d05860d` on `codex/unified-feedback`, implemented the authorized lesson directly in the project. Read the 52-slide PPT and 40-minute script from the supplied Downloads paths, recording their hashes in the lesson module and bilingual guide. Original files were not changed.
+- Bundled a Grade 7, 40-minute lesson with six groups and twelve tasks using only choice, fill-in, and AI questions. Teachers select the template to create drafts and publish by group. Added blank fields, reference answers, and teacher-only notes, preserving preparation-pack reuse, classroom duplication, and the original layout.
+- `npm run check` passes 49 tests and the build. Desktop/mobile Chromium flows and both mock AI tasks pass. No real-model calls or school deployment; historical capacity results are not acceptance for this lesson.
+- Created a consistent SQLite backup under ignored `output/backups/2026-09-21T16-21-09.187Z-9d831fa4/`, with integrity `ok`. Started local port 3210 at 0.4.0 and read back health. No test classroom was added to the original data directory, and no administrator password or model settings were changed.
+- Content and guides remain on the current local feature branch. No GitHub push, PR, or remote changes. Original PPT/Word files, runtime data, backups, and browser screenshots remain outside Git.
+- Local implementation commit: `b77476200e2b29a728b993c8d1f6ef0cb97a6bae` on `codex/unified-feedback`, with a clean working tree after committing. This follow-up records the delivery commit without changing runtime code.
+
+## 2026-09-20 — Unified feedback, quick preparation, and rollback (local)
+
+- Started from clean `main` at `021bb8328558bf1d2a2f0921aa19ac087a220205`, created `codex/unified-feedback`, and tagged the original code as `codex/pre-unified-feedback-20260920` before editing. The source Git bundle and consistent SQLite snapshot were verified and retained under ignored `output/backups/pre-unified-feedback-20260920/`.
+- Referenced QuickForm’s official description and local teacher edition 2.0 task, collection, data-review, and export mechanisms. Independently implemented the unified workspace, preparation templates/AI instructions, standard task-pack import/export, and per-task CSV. No QuickForm code was copied or executed, and no online QuickForm service was connected.
+- Teachers edit, preview, publish, and review feedback on one page. Students join once and retain independent task order, recoverable drafts, submission confirmation, and uninterrupted work when later groups open. Imports validate before creating draft groups, roll back atomically on failure, and deduplicate retries.
+- Preserved the original layout, a separate rollback tag, and `npm run backup`. No database schema changes. The original code reads a copy of new-version test data; reopening in the new version preserves tasks, participants, responses, login, and sessions.
+- All 44 tests, syntax checks, production build, dependency audit, and desktop/mobile Chromium flows passed. Both languages of the guide, API contract, and validation report are synchronized. Real models and school servers are outside this acceptance scope.
+- Local implementation commit: `bd358db42418dcb38e65095f6eba188eb062f643` on `codex/unified-feedback`; the rollback tag still points to the pre-change commit. Nothing has been pushed to GitHub.
+- Local port 3210 runs 0.3.0 and the health endpoint confirms the version. Original data matches the pre-change snapshot and the management password is unchanged; test records remain in the isolated QA directory.
+- Changes and verification are local only: no GitHub push, PR creation, or school production deployment. Runtime data, backups, and browser screenshots remain outside Git.
 
 ## 2026-09-19 20:33 — PR #3 merged and local verification
 

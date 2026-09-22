@@ -23,8 +23,9 @@ const types = {
   poll: "投票",
   understanding: "理解度",
   text: "开放回答",
+  fill: "填空题",
   exit: "离堂反馈",
-  ai: "AI 探究",
+  ai: "AI 问答",
 };
 const Button = ({ kind = "secondary", children, ...rest }) => (
   <button className={`btn ${kind}`} {...rest}>
@@ -43,9 +44,10 @@ export function TeacherGroups({
   onEditGroup,
   onAddTask,
   readonly,
+  disabled = false,
 }) {
   return (
-    <section className="activity-list surface grouped-list">
+    <section className="activity-list surface grouped-list" inert={disabled}>
       <div className="section-header">
         <h2>
           课堂任务组 <span>{groups.length}</span>

@@ -1,8 +1,8 @@
-# 表单扩展接口（0.2.1）
+# 表单扩展接口（0.4.0）
 
 [English](form-integration.en.md)
 
-本页描述已实现的采集与导出接口。尚未接入具体 QuickForm 产品、动态自定义题型、Webhook 或第三方账号；这不是某个外部表单产品的 API 承诺。
+本页描述已实现的采集与导出接口。已借鉴 QuickForm 任务流程，但尚未接入其在线服务、动态自定义题型、Webhook 或第三方账号；这不是某个外部表单产品的 API 承诺。
 
 ## 稳定字段
 
@@ -38,6 +38,25 @@
 | `GET /api/teacher/classrooms/:id/participants?offset=0`    | 教师 Cookie；每页 50 条参与明细；`format=csv` 导出全部                                   |
 | `GET /api/teacher/classrooms/:id/export?format=json`       | 教师 Cookie；导出 `schemaVersion: 2` 完整记录                                            |
 
+新增的教师备课与按题导出接口：
+
+| 接口 | 权限／作用 |
+| --- | --- |
+| `POST /api/teacher/classrooms/:id/task-pack/preview` | 教师 Cookie；校验并返回规范任务包，不创建记录 |
+| `POST /api/teacher/classrooms/:id/task-pack` | 教师 Cookie；校验整个包后，在事务中创建一个草稿组和全部任务；额外需要 `requestId` |
+| `GET /api/teacher/groups/:id/pack` | 教师 Cookie；导出 1–12 项的备课包，只含内容，不含身份、反馈、ID、发布状态或 AI 分析 |
+| `GET /api/teacher/classrooms/:id/export?format=csv&activityId=...` | 教师 Cookie；当前课堂单题完整 CSV，不受页面 100 条显示限制；跨课 ID 拒绝 |
+
+备课包为 `{ schemaVersion: 1, group: { title, duration }, activities: [...] }`，不是全课记录的 `schemaVersion: 2`。`duration` 为整组开放秒数（0–7200，0 不限时）；每包 1–12 项，复用现有九种任务与字段校验，不接受任意表单 Schema。两个 POST 接口的请求体上限为 256 KB，其余接口仍为 32 KB。`requestId` 为 1–80 字符的字母、数字或连字符；同一课堂相同编号与内容返回原组，编号相同但内容不同返回 409。幂等记录保存在既有 `meta` 表中，无表结构迁移。单题 JSON 不提供；全课 JSON 导出保持兼容。示例与流程见[备课与回滚](unified-workspace.md)。
+
+### 填空与教师讲解提示（0.4.0）
+
+`type: "fill"` 使用 `blanks: [{ label, reference }]` 定义 1–6 个空。`label` 为必填提示，最多 120 字；`reference` 为教师参考，最多 300 字，可留空。学生提交 `{ blanks: ["第一空", "第二空"] }`，数量必须完全一致，每空去除首尾空格后为 1–300 字。服务端额外生成带提示标签的 `answer.text`，用于现有教师反馈与 CSV；客户端不能伪造该文本。填空不自动计正确率，CSV 的对应字段为“教师讲评”。
+
+任何任务可带 `teacherNotes`（0–3000 字）。备课包、整课复用和教师导出保留填空参考与提示。学生状态只含填空 `label`，公布本题结果后才增加 `blankReferences`，隐藏结果时移除；`teacherNotes` 永不进入学生状态或统计大屏。学生预览也不显示参考答案或教师提示。该新增内容需要 0.4.0 或更高版本，旧版本不支持 `fill`。
+
+`GET /api/teacher/templates` 新增 `ai-everywhere`，返回含 `groups` 和教学分钟建议的整课模板；`POST /api/teacher/classrooms` 传 `templateId: "ai-everywhere"` 原子创建六组十二项草稿，默认年级七年级，分钟数不转成限时。仅创建内容，不发布、不调用 AI、不修改已有课堂。
+
 示例加入请求（须与该课堂启用字段一致）：
 
 ```json
@@ -60,6 +79,6 @@
 
 JSON 顶层包含 `participants`、`collection`、`room`、`groups`、`activities`、`questions`、`aiInteractions` 等；教师分析位于 `activities[].analysis`。`participants[].id` 与 `activities[].stats.responses[].participant_id`、问题及 AI 互动的 `participant_id` 关联；原始响应中的已有数据库字段保持命名，参与信息规范字段使用上表 ID。导出不包含会话令牌。导出属于教师明细，不能原样用于大屏或学生页。
 
-后续明确具体 QuickForm 项目及其 API 后，可在服务端将外部字段映射到稳定 ID，新增题型仍通过任务组发布，并让响应进入现有会话、校验和统计路径。任意表单 Schema、导入、Webhook 推送、外部账户绑定和自定义字段设计器均未实现。
+后续如需适配 QuickForm 外部接口，可在服务端将外部字段映射到稳定 ID，新增题型仍通过任务组发布，并让响应进入现有会话、校验和统计路径。本轮只实现同频标准任务包的导入／导出；QuickForm 数据迁移、任意表单 Schema、Webhook 推送、外部账户绑定和自定义字段设计器未实现。
 
 验证入口：`npm run check`；`test/app.test.js` 覆盖必填／选项校验、关闭字段拒绝新采集、会话复用、后加必填项、导出关联、权限、词云和明细隔离。`npm run test:capacity` 包含六字段采集、任务提交、并发统计读取和词云采样。

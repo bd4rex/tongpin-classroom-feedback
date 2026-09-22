@@ -2,7 +2,51 @@
 
 [English](TEST_REPORT.en.md)
 
-最新验证：2026-09-19，版本 0.2.1。本轮修复实时通知、AI 暂停队列、自动编号与昵称混用、隐藏学校后的城市校验四项审查问题。使用独立临时数据和模拟模型，未部署校内正式服务器，未调用真实模型。下方同时保留 0.2.0 的功能、浏览器和短时容量记录。
+最新验证：2026-09-22，本地版本 0.4.0。内置整课、填空与教师提示使用独立测试数据验证；AI 采用模拟模型，未部署校内正式服务器。下方保留各历史版本记录。
+
+## 0.4.0 内置人工智能整课、填空与教师提示
+
+- 读取并按 SHA-256 记录用户提供的 52 页 PPT 与 40 分钟逐字稿，课程文件随服务端源码分发，不依赖原文件路径。源文件未修改，未把原 PPT 或 Word 加入项目。
+- `npm run check` 通过 49 项测试、语法检查和生产构建。本轮新增 5 项集成测试：六组十二项的内容与创建契约、填空字段与回答校验、公布前参考答案与教师提示隔离、十二项作答及导出复用、末项无效时整课事务回退。未新增依赖，未重跑容量或真实模型测试。
+- 模板仅使用 `single`／`multiple`（选择）、`fill`（填空）、`ai`（AI 问答）。六组用时合计 40 分钟，全部创建为不限时草稿；创建不会调用模型。原有模板和原界面保留。
+- 填空逐空校验数量、类型、必填与长度，服务端生成带标签的显示文本；重复提交幂等。填空不自动判分，CSV 标为教师讲评。题组备课包和整课复用保留参考与教师提示，不复制参与者、回答、发布状态或 AI 历史。
+- 真实 Chromium：1440×1040 教师视口与 390×844 手机视口跑通整课选择与创建、教师提示、选择作答、填空切题及刷新恢复、后续组发布不打断、提交确认、继续未完成任务、参考公布、填空编辑、两种工作台学生预览。两项 AI 问答均通过本地模拟模型完成请求和反思提交。无页面脚本错误，无整页横向溢出；截图已经目视检查。
+- 本地 3210 启动 0.4.0 前执行 `npm run backup`，数据完整性为 `ok`。原库六类教学记录均为 0，未向原库插入示例课堂或测试学生。已读回健康接口版本；正式使用时从教师入口选模板创建。
+- 0.4.0 的填空任务需要新版程序，旧代码回滚兼容验证不涵盖新 `fill` 类型；参见[备课与回滚](docs/unified-workspace.md)。
+
+浏览器脚本仅供独立 QA 环境使用，会结束该测试服务上的当前课堂并新建测试课：
+
+```bash
+QA_DATA_DIR="$(mktemp -d)" node scripts/qa-server.js
+# 在另一个终端执行：
+npx --yes --package @playwright/cli playwright-cli --session ai-lesson open http://127.0.0.1:3211 --headed
+npx --yes --package @playwright/cli playwright-cli --session ai-lesson run-code --filename test/browser/ai-lesson.js
+```
+
+结构化结果：[ai-lesson-2026-09-22.json](docs/validation/ai-lesson-2026-09-22.json)。本机截图位于忽略目录 `output/playwright/ai-lesson-create.png`、`ai-lesson-teacher.png`、`ai-lesson-fill-mobile.png`。这些验证不代表目标学校网络、真实模型质量或真实 40 分钟课堂效果。
+
+## 0.3.0 统一工作台、备课包与回滚
+
+- `npm run check` 通过 44 项测试、语法检查和生产构建；`npm audit --omit=dev` 报告 0 项已知漏洞。本轮新增 8 项测试，未重跑 3000 端或完整课时负载。
+- 备课包：预览不写记录；无效题目指出序号且无部分导入；模拟第二项写入失败时整组回退；同请求重试只创建一组；相同编号不同内容拒绝；学生与匿名请求不能访问教师接口；结束课堂不能导入。
+- 内容复用：导出／导入保留任务说明与教师参考答案，不带入参与身份、回答、发布状态和分析。12 项长材料超过原 32 KB 上限仍能导出回读，超过专用 256 KB 上限拒绝。
+- 按题 CSV：验证单题 101 份回答完整导出，其他题内容被排除，跨课堂 ID 拒绝，原有 CSV 公式防护和全课 JSON 格式保留。
+- 真实 Chromium：1440×1040 教师端和 390×844 手机视口跑通模板预览、页内编辑、错误 JSON 提示、围栏 JSON 导入、备课包文件往返预览、学生视角预览、整组发布、按题导出和统计跟随选题。切回原界面、刷新并返回统一工作台正常；无页面脚本错误、无整页横向溢出。
+- 学生流程：一次加入后两份回答关联到同一参与端；切题与刷新保留未提交文字；教师发布后续组不打断当前输入；提交后显示已保存并继续下一项；公布前参考答案不外泄。
+- 备份：在线 WAL 快照经完整性、外键、SHA-256、文件权限和源数据库未覆盖检查；备份后源数据库继续写入不改变快照。
+- 代码回滚：旧版 `021bb83`（0.2.1）可独立构建，并打开新版生成的独立数据副本，保留当前课堂的 4 项任务、1 个参与端、2 份回答与 2 个开放组，教师登录正常。再用 0.3.0 打开同一副本，教师会话和回答继续保留。证据：[unified-rollback-2026-09-20.json](docs/validation/unified-rollback-2026-09-20.json)。
+
+浏览器复现脚本：`test/browser/unified-workspace.js`，只对独立 QA 服务执行，会结束该测试服务上的未结束课堂后新建演示课堂：
+
+```bash
+QA_DATA_DIR="$(mktemp -d)" node scripts/qa-server.js
+# 在另一个终端执行：
+npx --yes --package @playwright/cli playwright-cli --session unified-feedback open http://127.0.0.1:3211 --headed
+npx --yes --package @playwright/cli playwright-cli --session unified-feedback run-code --filename test/browser/unified-workspace.js
+```
+
+本机截图保存在忽略目录 `output/playwright/unified-preparation.png`、`unified-teacher-desktop.png`、`unified-teacher-mobile.png` 和 `unified-student-mobile.png`。仅证明本机模拟教学流程；真实 AI 备课质量、校内网络和目标服务器承载能力不在本轮验证范围。
+
 
 ## 0.2.1 审查修复回归
 

@@ -4,7 +4,7 @@
 
 Repository: [bd4rex/tongpin-classroom-feedback](https://github.com/bd4rex/tongpin-classroom-feedback). This is a public repository and can be viewed or cloned without signing in to GitHub.
 
-Current version: `0.2.1`, fixing missed classroom refreshes, AI queue cancellation, generated labels being treated as nicknames, and city validation when school collection is hidden.
+Current version: `0.4.0`, with a bundled 40-minute AI Everywhere lesson, fill-in tasks, and teacher notes. The unified workspace, quick preparation, portable packs, and per-task export remain available.
 
 One teacher, one current classroom, and many students joining live. The application supports mathematics, language, science, AI, and other subjects. Audio and video remain in the existing conferencing system.
 
@@ -18,6 +18,7 @@ Students do not need accounts or an imported roster. They enter a classroom code
 | Validation report            | [TEST_REPORT.md](TEST_REPORT.md)                | [TEST_REPORT.en.md](TEST_REPORT.en.md)                |
 | Update and handoff log       | [TIMESTAMP_LOG.md](TIMESTAMP_LOG.md)            | [TIMESTAMP_LOG.en.md](TIMESTAMP_LOG.en.md)            |
 | Form integration contract    | [form-integration.md](docs/form-integration.md) | [form-integration.en.md](docs/form-integration.en.md) |
+| Preparation, classroom flow, and rollback | [unified-workspace.md](docs/unified-workspace.md) | [unified-workspace.en.md](docs/unified-workspace.en.md) |
 
 ## Start and try it
 
@@ -34,10 +35,10 @@ npm start
 Teacher entry: `http://127.0.0.1:3210`. Student entry: `/join` on the server's reachable address and port 3210. On macOS, you can also double-click `启动同频.command`.
 
 1. On first use, the teacher sets an administrator password and signs in to the workbench.
-2. Choose a template or create an empty classroom, select fields in Collection and display, then share its code or QR code.
-3. Students enter the code and fill in the enabled fields once. Later responses are linked to that classroom session.
-4. The teacher publishes questions or tasks in groups. Students choose the task order within each group and proceed to later groups that are open. The teacher can inspect group progress, individual task feedback, and student questions.
-5. End the classroom and review or export its records. Activities from past classrooms can be reused without carrying over past answers.
+2. Choose a classroom template, or create an empty classroom and use Quick preparation: choose a feedback template, open a preparation pack, or paste AI-organized task JSON. Validate, preview, and save drafts, then choose the fields needed for this lesson in Collection and display.
+3. Preview the student-facing task, then share the classroom code or QR code. Students provide the requested details once; later answers use the same session.
+4. Publish groups and review feedback, student questions, and statistics in the unified workspace. Students choose their task order, retain drafts, and continue to other open tasks after submitting.
+5. End the classroom and review or export records. Export a single task’s feedback or save a group as a preparation pack. Reuse never carries over students or previous answers.
 
 The server listens on `0.0.0.0:3210` by default. QR code generation tries to select a LAN address. With multiple network adapters, VPNs, or networks spanning schools, set `PUBLIC_URL` explicitly in `.env` and ensure students can reach it. Copy `.env.example` to `.env`, then start with `node --env-file=.env server/index.js`.
 
@@ -45,8 +46,15 @@ The server no longer compares the browser `Origin` with the server `Host`, so `l
 
 ## Implemented features
 
+- Bundled Grade 7 AI Everywhere lesson: six segments and 12 tasks, adapted from the supplied PPT and 40-minute script. Select 无处不在的人工智能 when creating a classroom, then publish by group without importing extra files. See the [lesson and usage guide](docs/lessons/ai-everywhere.en.md) ([中文](docs/lessons/ai-everywhere.md)).
+- This lesson uses only choice, fill-in, and AI questions. Fill-in tasks have 1–6 separate inputs, recoverable drafts, per-task export, and reference answers that reach students only after publication of results. Teacher notes remain teacher-only. Fill-in responses are discussed by teachers rather than automatically marked.
+
+- Unified workspace for task editing, student-view previews, collection controls, feedback, and statistics; the original layout remains available.
+- Quick preparation templates, AI preparation instructions, validated task-pack previews, and atomic draft import. Portable packs preserve materials and reference answers without student data.
+- Complete per-task CSV export, consistent snapshots with `npm run backup`, and verified compatibility with the original code; see [preparation and rollback](docs/unified-workspace.en.md).
+
 - One current classroom and its completed history. There is no student administration, admissions, enrollment, homework, or grading system.
-- Single choice, multiple choice, true/false, polls, comprehension checks, open responses, exit feedback, and AI inquiry.
+- Single choice, multiple choice, true/false, polls, comprehension checks, open responses, fill-in tasks, exit feedback, and AI questions (formerly AI inquiry).
 - Create and edit task groups, move draft tasks, and publish, pause, resume, time, or manually end groups. Results can be shown or hidden for individual tasks.
 - Multiple groups can remain open at once. Publishing a later group leaves earlier groups open and does not force students onto a new question.
 - Group progress shows completed, in progress, and not started, with optional aggregation by the school and class students enter themselves.
@@ -73,7 +81,7 @@ Teachers use **Statistics** for participation, online counts, city/school distri
 
 Student and projection endpoints return aggregates without names, student numbers, participant records, or raw responses. Choice distributions and word clouds appear only after **Show this task's results**; teachers can preview them first. Word clouds cover open responses, exit reflections/questions, and final AI-inquiry reflections. A repeated word counts once per response. Each cloud uses at most the latest 300 responses and 24,000 characters, shows the top 50 terms, and labels sampling. Collected names, student numbers, nicknames, common contact patterns, and teacher-defined excluded words are filtered. Other personal details in free text still require teacher preview. Term frequency is not an accuracy measure.
 
-QuickForm or other external form products are not integrated yet. Stable field IDs, server-side validation, and complete JSON exports with `schemaVersion: 2` provide an adaptation point once the specific product/API is known. See the [form integration contract](docs/form-integration.en.md).
+QuickForm’s task collection flow informed this release, but its online service/API and other external form products are not integrated. Stable field IDs, server-side validation, and complete JSON exports with `schemaVersion: 2` remain the basis for future external API adaptation. See the [form integration contract](docs/form-integration.en.md).
 
 ## Using task groups
 

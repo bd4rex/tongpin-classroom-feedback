@@ -42,9 +42,13 @@ export function WordCloud({ cloud }) {
     </>
   );
 }
-export function StatisticsPanel({ roomId, audience = "teacher" }) {
+export function StatisticsPanel({
+  roomId,
+  audience = "teacher",
+  initialActivityId = "",
+}) {
   const [data, setData] = useState(null),
-    [selected, setSelected] = useState(""),
+    [selected, setSelected] = useState(initialActivityId),
     [error, setError] = useState(""),
     [refreshId, setRefreshId] = useState(0);
   const inFlight = useRef(false);

@@ -1,0 +1,44 @@
+{
+  "date": "2026-09-22",
+  "version": "0.4.0",
+  "tests": {
+    "total": 49,
+    "passed": 49,
+    "failed": 0,
+    "command": "npm run check"
+  },
+  "browser": {
+    "ok": true,
+    "groups": 6,
+    "activities": 12,
+    "fillDraftRecovered": true,
+    "teacherReferenceHiddenUntilReveal": true,
+    "aiTasksCompletedWithMock": 2,
+    "errors": [],
+    "viewports": [
+      "1440x1040",
+      "390x844"
+    ]
+  },
+  "lesson": {
+    "grade": "七年级",
+    "minutes": 40,
+    "groups": 6,
+    "activities": 12,
+    "choice": 6,
+    "fill": 4,
+    "ai": 2
+  },
+  "scope": {
+    "isolatedTestData": true,
+    "realModel": false,
+    "schoolDeployment": false,
+    "fullDurationClass": false,
+    "capacityRerun": false
+  },
+  "localHealth": {
+    "ok": true,
+    "app": "同频课堂反馈",
+    "version": "0.4.0"
+  }
+}

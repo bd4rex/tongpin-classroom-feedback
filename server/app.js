@@ -32,6 +32,7 @@ import {
   missingProfile,
 } from "./collection.js";
 import { createDashboard } from "./dashboard.js";
+import { normalizeTaskPack } from "./task-pack.js";
 
 const token = () => randomBytes(32).toString("hex");
 const cookieValue = (request, name) =>
@@ -196,7 +197,7 @@ export async function buildApp({
   app.get("/api/health", async () => ({
     ok: true,
     app: "同频课堂反馈",
-    version: "0.2.1",
+    version: "0.4.0",
   }));
   app.get("/api/auth/status", async (request) => {
     let authenticated = false;
@@ -447,6 +448,62 @@ export async function buildApp({
     broadcast(a.classroom_id);
     return a;
   });
+  app.post(
+    "/api/teacher/classrooms/:id/task-pack/preview",
+    { bodyLimit: 262144 },
+    async (request) => {
+      teacher(request);
+      store.classroom(request.params.id);
+      return normalizeTaskPack(request.body);
+    },
+  );
+  app.post(
+    "/api/teacher/classrooms/:id/task-pack",
+    { bodyLimit: 262144 },
+    async (request) => {
+      teacher(request);
+      const room = store.classroom(request.params.id);
+      if (room.status === "ended") throw new AppError("课堂已结束", 409);
+      const pack = normalizeTaskPack(request.body);
+      const requestId = str(request.body.requestId, "导入请求编号", 80);
+      if (!/^[a-zA-Z0-9-]+$/.test(requestId))
+        throw new AppError("导入请求编号格式无效");
+      const key = `task-pack:${room.id}:${requestId}`;
+      const fingerprint = hash(JSON.stringify(pack));
+      const result = store.transaction(() => {
+        const previous = store.meta(key);
+        if (previous) {
+          if (previous.fingerprint !== fingerprint)
+            throw new AppError("本次导入内容已变化，请重新校验", 409);
+          return { group: store.group(previous.groupId), duplicate: true };
+        }
+        const group = store.addGroup(room.id, pack.group);
+        for (const activity of pack.activities)
+          store.addActivity(room.id, { ...activity, groupId: group.id });
+        store.setMeta(key, { groupId: group.id, fingerprint });
+        return { group, duplicate: false };
+      });
+      broadcast(room.id, "teacher");
+      return result;
+    },
+  );
+  app.get("/api/teacher/groups/:id/pack", async (request, reply) => {
+    teacher(request);
+    const group = store.group(request.params.id);
+    const activities = store
+      .all(
+        "SELECT content FROM activities WHERE group_id=? ORDER BY position,id",
+        group.id,
+      )
+      .map((a) => JSON.parse(a.content));
+    const pack = normalizeTaskPack({ schemaVersion: 1, group, activities });
+    return reply
+      .header(
+        "Content-Disposition",
+        `attachment; filename="task-pack-${group.id}.json"`,
+      )
+      .send(pack);
+  });
   app.put("/api/teacher/activities/:id", async (request) => {
     teacher(request);
     const a = store.activity(request.params.id);
@@ -599,6 +656,14 @@ export async function buildApp({
   app.get("/api/teacher/classrooms/:id/export", async (request, reply) => {
     teacher(request);
     const state = store.teacherState(request.params.id, true);
+    const activityId = request.query.activityId;
+    if (activityId) {
+      if (!state.activities.some((a) => a.id === activityId))
+        throw new AppError("活动不属于当前课堂", 404);
+      if (request.query.format === "json")
+        throw new AppError("单题反馈请使用 CSV；完整记录请导出全课 JSON");
+      state.activities = state.activities.filter((a) => a.id === activityId);
+    }
     if (request.query.format === "json")
       return reply
         .header(
@@ -670,7 +735,9 @@ export async function buildApp({
             ? JSON.stringify(r.answer.choices) === JSON.stringify(a.correct)
               ? "是"
               : "否"
-            : "未设置",
+            : a.type === "fill"
+              ? "教师讲评"
+              : "未设置",
           new Date(r.created_at).toISOString(),
         ]);
       }
@@ -678,7 +745,7 @@ export async function buildApp({
       .type("text/csv; charset=utf-8")
       .header(
         "Content-Disposition",
-        `attachment; filename="classroom-${state.room.code}.csv"`,
+        `attachment; filename="classroom-${state.room.code}${activityId ? `-task-${activityId}` : ""}.csv"`,
       )
       .send("\uFEFF" + rows.map((r) => r.map(csvCell).join(",")).join("\r\n"));
   });
