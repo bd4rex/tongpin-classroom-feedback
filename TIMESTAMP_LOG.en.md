@@ -6,9 +6,16 @@ All times use UTC+08:00.
 
 ## Project information
 
-- Project: Tongpin · General Classroom Feedback MVP, local version `0.4.0`.
+- Project: Tongpin · General Classroom Feedback MVP, version `0.4.0`.
 - Repository: <https://github.com/bd4rex/tongpin-classroom-feedback>.
 - Published branch: `main`; this feature branch: `codex/unified-feedback`; repository visibility: public. The first publication is complete.
+
+## 2026-09-22 10:12 — 0.4.0 GitHub publication preparation
+
+- Authorized by the user's request to update GitHub, preparing to publish the unified workspace, quick preparation, task packs, and bundled AI lesson together. After fetching, remote `main` is `021bb8328558bf1d2a2f0921aa19ac087a220205`; local `codex/unified-feedback` is `a347701db5635415299770d7adffc8feaf702b2b`, four commits ahead with no divergence.
+- Publication uses the existing 0.4.0 validation: 49 tests, syntax checks, production build, and desktop/mobile browser flows passed. Only publication documentation changed afterward. AI questions used a mock model; no school-server deployment was performed.
+- Checked the publication file list and scanned changed content for secret patterns. Original PPT/Word files, runtime databases, model configuration, environment files, backups, dependencies, and build outputs are excluded from this update.
+- Synchronized the current-version wording in both README files and prepared a PR merge into `main`. Actual push, PR, and remote-commit verification will be recorded after completion.
 
 ## 2026-09-22 00:24 — Bundled AI Everywhere lesson (local)
 

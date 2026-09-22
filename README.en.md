@@ -4,7 +4,7 @@
 
 Repository: [bd4rex/tongpin-classroom-feedback](https://github.com/bd4rex/tongpin-classroom-feedback). This is a public repository and can be viewed or cloned without signing in to GitHub.
 
-Current local version: `0.4.0` (not pushed yet), with a bundled 40-minute AI Everywhere lesson, fill-in tasks, and teacher notes. The unified workspace, quick preparation, portable packs, and per-task export remain available.
+Current version: `0.4.0`, with a bundled 40-minute AI Everywhere lesson, fill-in tasks, and teacher notes. The unified workspace, quick preparation, portable packs, and per-task export remain available.
 
 One teacher, one current classroom, and many students joining live. The application supports mathematics, language, science, AI, and other subjects. Audio and video remain in the existing conferencing system.
 
