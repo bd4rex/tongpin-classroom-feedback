@@ -10,6 +10,13 @@
 - 仓库：<https://github.com/bd4rex/tongpin-classroom-feedback>。
 - 已发布分支：`main`；本次功能分支：`codex/unified-feedback`；仓库可见性：公开，首次发布已完成。
 
+## 2026-09-22 10:14 — 0.4.0 已合并到 GitHub main
+
+- 发布分支 `codex/unified-feedback` 已推送至 `1c60f30bd5f2e4faa5481d99428b345a3205e49a`，并通过 [PR #4](https://github.com/bd4rex/tongpin-classroom-feedback/pull/4) 合并到 `main`。GitHub 合并提交为 `58b2cd27eeeb55c1660c926d7a43c496ba925068`。
+- 合并前确认 PR 目标为 `main`、提交一致且可合并；该 PR 无 GitHub 自动检查记录，发布依据为此前通过的本地 49 项测试、构建与浏览器验证。
+- 合并后重新获取远端，GitHub PR 状态为 `MERGED`；远端 `main` 文件树与发布分支完全一致。通过 GitHub 内容接口读回 `package.json` 和整课模块，文件哈希与本地 Git 对象一致，版本为 `0.4.0`。
+- 本地已切回 `main` 并快进到合并提交。本条仅补记发布结果；本轮未改动运行代码、课堂数据或模型配置，未部署校内正式服务器。
+
 ## 2026-09-22 10:12 — 0.4.0 GitHub 发布准备
 
 - 按用户“帮我更新到 GitHub”的授权，将统一工作台、快速备课、任务包及内置人工智能整课一起发布到公开仓库。刷新远端后，`main` 为 `021bb8328558bf1d2a2f0921aa19ac087a220205`，本地 `codex/unified-feedback` 为 `a347701db5635415299770d7adffc8feaf702b2b`，领先四个提交且无分叉。

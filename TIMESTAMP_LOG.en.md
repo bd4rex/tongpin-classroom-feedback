@@ -10,6 +10,13 @@ All times use UTC+08:00.
 - Repository: <https://github.com/bd4rex/tongpin-classroom-feedback>.
 - Published branch: `main`; this feature branch: `codex/unified-feedback`; repository visibility: public. The first publication is complete.
 
+## 2026-09-22 10:14 — 0.4.0 merged into GitHub main
+
+- Pushed `codex/unified-feedback` at `1c60f30bd5f2e4faa5481d99428b345a3205e49a` and merged it into `main` through [PR #4](https://github.com/bd4rex/tongpin-classroom-feedback/pull/4). The GitHub merge commit is `58b2cd27eeeb55c1660c926d7a43c496ba925068`.
+- Before merging, verified the `main` base, matching head commit, and mergeability. The PR has no GitHub automated check records; publication relies on the previously passing local 49 tests, build, and browser validation.
+- Fetched the remote after merging and confirmed the PR state is `MERGED`. The remote `main` file tree exactly matches the release branch. Read back `package.json` and the lesson module through the GitHub contents API; their hashes match local Git objects, with version `0.4.0`.
+- Switched the local checkout back to `main` and fast-forwarded to the merge commit. This entry records publication only; this round made no runtime-code, classroom-data, or model-configuration changes and no school production deployment.
+
 ## 2026-09-22 10:12 — 0.4.0 GitHub publication preparation
 
 - Authorized by the user's request to update GitHub, preparing to publish the unified workspace, quick preparation, task packs, and bundled AI lesson together. After fetching, remote `main` is `021bb8328558bf1d2a2f0921aa19ac087a220205`; local `codex/unified-feedback` is `a347701db5635415299770d7adffc8feaf702b2b`, four commits ahead with no divergence.
